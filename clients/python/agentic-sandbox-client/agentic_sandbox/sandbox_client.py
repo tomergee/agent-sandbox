@@ -82,6 +82,7 @@ class SandboxClient:
         port_forward_ready_timeout: int = 30,
         enable_tracing: bool = False,
         trace_service_name: str = "sandbox-client",
+        manager_url: str | None = None,  # URL of sandbox-manager service
     ):
         self.trace_service_name = trace_service_name
         self.tracing_manager = None
@@ -113,12 +114,17 @@ class SandboxClient:
         self.pod_name: str | None = None
         self.annotations: dict | None = None
 
-        try:
-            config.load_incluster_config()
-        except config.ConfigException:
-            config.load_kube_config()
+        self.manager_url = manager_url
+        self._use_manager = manager_url is not None
 
-        self.custom_objects_api = client.CustomObjectsApi()
+        if not self._use_manager:
+            try:
+                config.load_incluster_config()
+            except config.ConfigException:
+                config.load_kube_config()
+            self.custom_objects_api = client.CustomObjectsApi()
+        else:
+            self.custom_objects_api = None
 
         # HTTP session with retries
         self.session = requests.Session()
@@ -135,9 +141,53 @@ class SandboxClient:
         """Returns True if the sandbox is ready and the Gateway IP has been found."""
         return self.base_url is not None
 
+    @trace_span("create_claim_via_manager")
+    def _create_claim_via_manager(self, trace_context_str: str = ""):
+        """Creates a SandboxClaim via the sandbox-manager HTTP service."""
+        annotations = {}
+        if trace_context_str:
+            annotations["opentelemetry.io/trace-context"] = trace_context_str
+
+        payload = {
+            "template_name": self.template_name,
+            "namespace": self.namespace,
+            "annotations": annotations,
+        }
+        response = self.session.post(
+            f"{self.manager_url.rstrip('/')}/sandbox/create",
+            json=payload,
+            timeout=self.sandbox_ready_timeout + 10,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        self.claim_name = data["claim_name"]
+        self.sandbox_name = data["sandbox_name"]
+        self.pod_name = data["pod_name"]
+        self.annotations = data.get("annotations", {})
+
+        logging.info(
+            f"Created sandbox via manager: claim={self.claim_name}, "
+            f"sandbox={self.sandbox_name}, pod={self.pod_name}"
+        )
+
+    def _delete_claim_via_manager(self):
+        """Deletes the SandboxClaim via the sandbox-manager HTTP service."""
+        logging.info(f"Deleting SandboxClaim via manager: {self.claim_name}")
+        try:
+            response = self.session.delete(
+                f"{self.manager_url.rstrip('/')}/sandbox/{self.namespace}/{self.claim_name}",
+                timeout=30,
+            )
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Error deleting sandbox claim via manager: {e}")
+
     @trace_span("create_claim")
     def _create_claim(self, trace_context_str: str = ""):
         """Creates the SandboxClaim custom resource in the Kubernetes cluster."""
+        if self._use_manager:
+            return self._create_claim_via_manager(trace_context_str)
         self.claim_name = f"sandbox-claim-{os.urandom(4).hex()}"
 
         span = trace.get_current_span()
@@ -172,6 +222,9 @@ class SandboxClient:
     @trace_span("wait_for_sandbox_ready")
     def _wait_for_sandbox_ready(self):
         """Waits for the Sandbox custom resource to have a 'Ready' status."""
+        if self._use_manager:
+            return  # Manager already waited for readiness during create
+
         if not self.claim_name:
             raise RuntimeError(
                 "Cannot wait for sandbox; a sandboxclaim has not been created.")
@@ -366,21 +419,24 @@ class SandboxClient:
         # Delete the SandboxClaim
         if self.claim_name:
             logging.info(f"Deleting SandboxClaim: {self.claim_name}")
-            try:
-                self.custom_objects_api.delete_namespaced_custom_object(
-                    group=CLAIM_API_GROUP,
-                    version=CLAIM_API_VERSION,
-                    namespace=self.namespace,
-                    plural=CLAIM_PLURAL_NAME,
-                    name=self.claim_name
-                )
-            except client.ApiException as e:
-                if e.status != 404:
+            if self._use_manager:
+                self._delete_claim_via_manager()
+            else:
+                try:
+                    self.custom_objects_api.delete_namespaced_custom_object(
+                        group=CLAIM_API_GROUP,
+                        version=CLAIM_API_VERSION,
+                        namespace=self.namespace,
+                        plural=CLAIM_PLURAL_NAME,
+                        name=self.claim_name
+                    )
+                except client.ApiException as e:
+                    if e.status != 404:
+                        logging.error(
+                            f"Error deleting sandbox claim: {e}", exc_info=True)
+                except Exception as e:
                     logging.error(
-                        f"Error deleting sandbox claim: {e}", exc_info=True)
-            except Exception as e:
-                logging.error(
-                    f"Unexpected error deleting sandbox claim: {e}", exc_info=True)
+                        f"Unexpected error deleting sandbox claim: {e}", exc_info=True)
 
         # Cleanup Trace if it exists
         if self.tracing_manager:

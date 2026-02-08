@@ -20,7 +20,7 @@ POD_NAME_ANNOTATION = "agents.x-k8s.io/pod-name"
 
 
 async def main(template_name: str, gateway_name: str | None, api_url: str | None, namespace: str,
-               server_port: int, enable_tracing: bool):
+               server_port: int, enable_tracing: bool, manager_url: str | None = None):
     """
     Tests the Sandbox client by creating a sandbox, running a command,
     and then cleaning up.
@@ -28,7 +28,9 @@ async def main(template_name: str, gateway_name: str | None, api_url: str | None
 
     print(
         f"--- Starting Sandbox Client Test (Namespace: {namespace}, Port: {server_port}) ---")
-    if gateway_name:
+    if manager_url:
+        print(f"Mode: Sandbox Manager ({manager_url})")
+    elif gateway_name:
         print(f"Mode: Gateway Discovery ({gateway_name})")
     elif api_url:
         print(f"Mode: Direct API URL ({api_url})")
@@ -43,7 +45,8 @@ async def main(template_name: str, gateway_name: str | None, api_url: str | None
             gateway_name=gateway_name,
             api_url=api_url,
             server_port=server_port,
-            enable_tracing=enable_tracing
+            enable_tracing=enable_tracing,
+            manager_url=manager_url,
         ) as sandbox:
 
             print("\n--- Testing Pod Name Discovery ---")
@@ -134,6 +137,12 @@ if __name__ == "__main__":
                         action="store_true",
                         help="Enable OpenTelemetry tracing in the agentic-sandbox-client."
                         )
+    parser.add_argument(
+        "--manager-url",
+        default=None,
+        help="URL of the sandbox-manager service (e.g. http://localhost:8080). "
+             "When provided, lifecycle operations go through the manager instead of direct K8s API."
+    )
 
     args = parser.parse_args()
 
@@ -143,5 +152,6 @@ if __name__ == "__main__":
         api_url=args.api_url,
         namespace=args.namespace,
         server_port=args.server_port,
-        enable_tracing=args.enable_tracing
+        enable_tracing=args.enable_tracing,
+        manager_url=args.manager_url,
     ))

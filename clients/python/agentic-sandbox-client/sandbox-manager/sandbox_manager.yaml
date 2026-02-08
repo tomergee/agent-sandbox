@@ -1,0 +1,114 @@
+# ServiceAccount for sandbox-manager to interact with the Kubernetes API.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sandbox-manager-sa
+---
+# ClusterRole with minimal permissions to manage SandboxClaims and read Sandboxes.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: sandbox-manager-role
+rules:
+- apiGroups:
+  - extensions.agents.x-k8s.io
+  resources:
+  - sandboxclaims
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - agents.x-k8s.io
+  resources:
+  - sandboxes
+  verbs:
+  - get
+  - list
+  - watch
+---
+# Bind the ClusterRole to the ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: sandbox-manager-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sandbox-manager-role
+subjects:
+- kind: ServiceAccount
+  name: sandbox-manager-sa
+  namespace: default
+---
+# A ClusterIP Service to provide a stable endpoint for the manager pods.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox-manager-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: sandbox-manager
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+---
+# The Deployment to manage and run the sandbox-manager pods.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox-manager-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sandbox-manager
+  template:
+    metadata:
+      labels:
+        app: sandbox-manager
+    spec:
+      serviceAccountName: sandbox-manager-sa
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: sandbox-manager
+      containers:
+      - name: manager
+        # IMPORTANT: Replace this with the full path to the manager image you built.
+        image: IMAGE_PLACEHOLDER
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SANDBOX_READY_TIMEOUT
+          value: "180"
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000

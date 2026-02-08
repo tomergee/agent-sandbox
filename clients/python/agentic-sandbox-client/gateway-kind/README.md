@@ -68,8 +68,15 @@ This guide explains how to manually set up the Sandbox Router and Gateway API on
     If the ADDRESS is empty, wait a bit longer or check the `cloud-provider-kind` logs.
     
     b.  **Run Test Client:** Use the `agentic-sandbox-client` in Gateway mode to test the end-to-end flow:
-    ```bash  
+    ```bash
     python ../test_client.py --gateway-name="kind-gateway"
+    ```
+
+    c.  **(Optional) Test with Sandbox Manager:** If you have the [Sandbox Manager](../sandbox-manager/README.md)
+        deployed, you can test the manager mode:
+    ```bash
+    kubectl port-forward svc/sandbox-manager-svc 9090:8080 &
+    python ../test_client.py --manager-url http://localhost:9090 --gateway-name="kind-gateway"
     ```
 
 5. **Clean up:** To stop the cloud-provider-kind process, run:
