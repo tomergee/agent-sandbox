@@ -143,8 +143,20 @@ func (r *SandboxClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}
 
+	// Record Prometheus Metric for SandboxClaim creation-to-ready latency
+	wasReady := meta.IsStatusConditionTrue(originalClaimStatus.Conditions, string(sandboxv1alpha1.SandboxConditionReady))
+	isReady := meta.IsStatusConditionTrue(claim.Status.Conditions, string(sandboxv1alpha1.SandboxConditionReady))
+	if !wasReady && isReady {
+		latencySeconds := time.Since(claim.CreationTimestamp.Time).Seconds()
+		asmetrics.SandboxClaimReadyLatency.WithLabelValues(claim.Namespace).Observe(latencySeconds)
+	}
+
 	if updateErr := r.updateStatus(ctx, originalClaimStatus, claim); updateErr != nil {
 		return ctrl.Result{}, errors.Join(reconcileErr, updateErr)
+	}
+
+	if len(originalClaimStatus.Conditions) == 0 && len(claim.Status.Conditions) > 0 {
+		asmetrics.SandboxClaimCreatedTotal.WithLabelValues(claim.Namespace).Inc()
 	}
 
 	// Determine Result

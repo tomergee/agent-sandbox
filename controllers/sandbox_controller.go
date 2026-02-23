@@ -154,6 +154,8 @@ func (r *SandboxReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if statusUpdateErr := r.updateStatus(ctx, oldStatus, sandbox); statusUpdateErr != nil {
 			// Surface update error
 			err = errors.Join(err, statusUpdateErr)
+		} else if len(oldStatus.Conditions) == 0 && len(sandbox.Status.Conditions) > 0 {
+			asmetrics.SandboxCreatedTotal.WithLabelValues(sandbox.Namespace).Inc()
 		}
 	}
 	// return errors seen
