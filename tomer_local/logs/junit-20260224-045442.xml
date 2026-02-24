@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="0" errors="0" time="109.047">
+      <testcase name="agent-sandbox-warmpool-load-test overall (/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-warmpool-load-test.yaml)" classname="ClusterLoaderV2" time="109.039284892"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 01] Start Startup Latency Measurement [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.516081286"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 02] Setup Sandbox Template" classname="ClusterLoaderV2" time="0.361454507"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 03] Setup Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.148083738"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 04] Wait for Warm Pool Pods to be Ready [00] - WaitForWarmPoolPods" classname="ClusterLoaderV2" time="35.264553315"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 05] Create Sandbox Claims" classname="ClusterLoaderV2" time="0.661148744"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 06] Wait for Sandbox Claims to be Ready [00] - WaitForSandboxClaims" classname="ClusterLoaderV2" time="4.934021702"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 07] Pause for Data Collection [00] - WaitAfterReady" classname="ClusterLoaderV2" time="15.110812395"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 08] Gather Results [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.29439457"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 09] Delete Sandbox Claims" classname="ClusterLoaderV2" time="0.686449318"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 10] Delete Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.149505135"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 11] Delete Sandbox Templates" classname="ClusterLoaderV2" time="0.140586957"></testcase>
+  </testsuite>

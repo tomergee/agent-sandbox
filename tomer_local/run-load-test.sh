@@ -63,7 +63,7 @@ kubectl delete namespace -l e2e-framework=clusterloader2 --wait=true 2>/dev/null
 
 echo "Running clusterloader2 (this will take a few minutes)..."
 ./clusterloader2 \
-  --testconfig="${AGENTS_DIR}/dev/load-test/agent-sandbox-claim-load-test.yaml" \
+  --testconfig="${AGENTS_DIR}/dev/load-test/agent-sandbox-warmpool-load-test.yaml" \
   --kubeconfig=$HOME/.kube/config \
   --provider=gke \
   --testoverrides="${AGENTS_DIR}/tomer_local/testoverrides.json" \

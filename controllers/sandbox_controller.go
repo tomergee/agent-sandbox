@@ -34,6 +34,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
@@ -623,6 +624,7 @@ func (r *SandboxReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 50}).
 		For(&sandboxv1alpha1.Sandbox{}).
 		Owns(&corev1.Pod{}, builder.WithPredicates(labelSelectorPredicate)).
 		Owns(&corev1.Service{}, builder.WithPredicates(labelSelectorPredicate)).

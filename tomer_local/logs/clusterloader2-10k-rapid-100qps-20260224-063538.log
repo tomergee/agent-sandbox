@@ -1,0 +1,220 @@
+I0224 06:35:39.916076 4162847 dns_performance-k8s-hostnames.go:58] Registering measurement: DNS Performance for K8s Hostnames
+I0224 06:35:39.916349 4162847 network_performance_measurement.go:90] Registering Network Performance Measurement
+I0224 06:35:39.918092 4162847 clusterloader.go:283] Listening on 8000
+I0224 06:35:41.186267 4162847 clusterloader.go:169] ClusterConfig.Nodes set to 483
+E0224 06:35:41.602010 4162847 clusterloader.go:194] Getting master name error: master node not found
+E0224 06:35:41.978279 4162847 clusterloader.go:203] Getting master external ip error: didn't find any ExternalIP master IPs
+E0224 06:35:42.362431 4162847 clusterloader.go:212] Getting master internal ip error: didn't find any InternalIP master IPs
+I0224 06:35:42.362497 4162847 clusterloader.go:320] Using config: {ClusterConfig:{KubeConfigPath:/usr/local/google/home/glottman/.kube/config RunFromCluster:false Nodes:483 Provider:0xc000328b50 EtcdCertificatePath:/etc/srv/kubernetes/pki/etcd-apiserver-server.crt EtcdKeyPath:/etc/srv/kubernetes/pki/etcd-apiserver-server.key EtcdInsecurePort:2382 MasterIPs:[] MasterInternalIPs:[] MasterName: MasterDNSEndpoint: DeleteStaleNamespaces:false DeleteAutomanagedNamespaces:true APIServerPprofByClientEnabled:true KubeletPort:10250 K8SClientsNumber:5 SkipClusterVerification:false} ReportDir: ExecServiceConfig:{Enable:true ImageRegistry:registry.k8s.io} ModifierConfig:{OverwriteTestConfig:[] SkipSteps:[]} PrometheusConfig:{TearDownServer:true EnableServer:false EnablePushgateway:false ScrapeEtcd:false ScrapeNodeExporter:false ScrapeWindowsNodeExporter:false ScrapeKubelets:false ScrapeMasterKubelets:false ScrapeKubeProxy:true KubeProxySelectorKey:component ScrapeKubeStateMetrics:false ScrapeMetricsServerMetrics:false ScrapeNodeLocalDNS:false ScrapeAnet:false ScrapeNetworkPolicies:false ScrapeMastersWithPublicIPs:false APIServerScrapePort:443 SnapshotProject: AdditionalMonitorsPath: StorageClassProvisioner:kubernetes.io/gce-pd StorageClassVolumeType:pd-ssd PVCStorageClass:ssd ReadyTimeout:15m0s PrometheusMemoryRequest:10Gi} OverridePaths:[/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/tomer_local/testoverrides.json]}
+I0224 06:35:43.034459 4162847 framework.go:74] Creating framework with 5 clients and "/usr/local/google/home/glottman/.kube/config" kubeconfig.
+I0224 06:35:43.441285 4162847 framework.go:276] Applying templates for "manifest/exec_deployment.yaml"
+W0224 06:35:54.249762 4162847 imagepreload.go:93] No images specified. Skipping image preloading
+I0224 06:35:54.413436 4162847 clusterloader.go:474] Test config successfully dumped to: generatedConfig_agent-sandbox-10k-rapid-burst.yaml
+I0224 06:35:54.413488 4162847 clusterloader.go:254] --------------------------------------------------------------------------------
+I0224 06:35:54.413498 4162847 clusterloader.go:255] Running /usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-10k-rapid-burst.yaml
+I0224 06:35:54.413523 4162847 clusterloader.go:256] --------------------------------------------------------------------------------
+E0224 06:40:13.554188 4162847 reflector.go:205] "Failed to watch" err="Get \"https://34.57.26.199/apis/extensions.agents.x-k8s.io/v1alpha1/sandboxclaims?allowWatchBookmarks=true&resourceVersion=1771915211995023002&timeoutSeconds=421&watch=true\": context canceled" logger="UnhandledError" reflector="pkg/mod/k8s.io/client-go@v0.34.0/tools/cache/reflector.go:290" type="extensions.agents.x-k8s.io/v1alpha1, Resource=sandboxclaims"
+W0224 06:55:57.385023 4162847 simple_test_executor.go:186] Got errors during step execution: [measurement call WaitForGenericK8sObjects - WaitForBurst63SandboxClaims error: WaitForGenericK8sObjects: objects: "extensions.agents.x-k8s.io/v1alpha1, Resource=sandboxclaims", namespaces: "agent-sandbox-(1-1)": timeout while waiting for 6300 objects to be successful or failed - currently there are: successful=5953 failed=0 count=6300]
+W0224 07:06:04.085081 4162847 simple_test_executor.go:186] Got errors during step execution: [measurement call WaitForGenericK8sObjects - WaitForBurst64SandboxClaims error: WaitForGenericK8sObjects: objects: "extensions.agents.x-k8s.io/v1alpha1, Resource=sandboxclaims", namespaces: "agent-sandbox-(1-1)": timeout while waiting for 6400 objects to be successful or failed - currently there are: successful=700 failed=0 count=700]
+W0224 07:16:10.736014 4162847 simple_test_executor.go:186] Got errors during step execution: [measurement call WaitForGenericK8sObjects - WaitForBurst65SandboxClaims error: WaitForGenericK8sObjects: objects: "extensions.agents.x-k8s.io/v1alpha1, Resource=sandboxclaims", namespaces: "agent-sandbox-(1-1)": timeout while waiting for 6500 objects to be successful or failed - currently there are: successful=0 failed=0 count=100]
+W0224 07:16:17.193145 4162847 simple_test_executor.go:186] Got errors during step execution: [namespace agent-sandbox-1 object agent-claim-6504 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6504" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6509 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6509" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6514 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6514" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6519 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6519" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6520 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6520" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6510 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6510" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6515 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6515" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6505 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6505" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6511 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6511" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6516 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6516" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6522 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6522" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6512 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6512" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6501 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6501" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6507 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6507" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6502 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6502" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6517 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6517" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6506 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6506" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6523 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6523" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6508 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6508" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6513 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6513" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6518 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6518" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6503 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6503" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6524 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6524" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6527 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6527" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6529 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6529" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6500 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6500" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6525 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6525" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6530 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6530" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6521 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6521" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6526 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6526" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6531 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6531" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6532 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6532" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6528 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6528" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6533 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6533" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6534 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6534" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6535 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6535" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6536 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6536" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6537 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6537" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6538 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6538" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6539 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6539" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6540 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6540" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6541 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6541" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6542 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6542" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6543 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6543" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6544 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6544" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6545 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6545" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6546 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6546" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6547 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6547" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6548 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6548" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6549 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6549" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6550 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6550" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6551 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6551" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6552 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6552" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6553 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6553" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6554 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6554" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6555 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6555" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6556 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6556" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6557 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6557" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6558 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6558" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6559 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6559" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6560 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6560" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6561 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6561" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6562 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6562" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6563 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6563" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6564 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6564" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6565 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6565" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6566 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6566" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6567 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6567" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6568 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6568" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6569 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6569" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6570 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6570" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6571 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6571" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6572 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6572" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6573 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6573" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6574 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6574" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6575 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6575" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6576 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6576" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6577 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6577" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6578 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6578" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6579 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6579" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6580 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6580" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6581 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6581" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6582 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6582" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6583 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6583" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6584 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6584" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6585 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6585" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6586 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6586" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6587 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6587" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6588 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6588" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6589 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6589" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6590 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6590" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6591 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6591" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6592 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6592" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6593 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6593" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6594 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6594" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6595 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6595" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6596 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6596" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6597 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6597" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6598 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6598" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated
+namespace agent-sandbox-1 object agent-claim-6599 creation error: sandboxclaims.extensions.agents.x-k8s.io "agent-claim-6599" is forbidden: unable to create new content in namespace agent-sandbox-1 because it is being terminated]
+W0224 07:26:17.299164 4162847 simple_test_executor.go:186] Got errors during step execution: [measurement call WaitForGenericK8sObjects - WaitForBurst66SandboxClaims error: WaitForGenericK8sObjects: objects: "extensions.agents.x-k8s.io/v1alpha1, Resource=sandboxclaims", namespaces: "agent-sandbox-(1-1)": timeout while waiting for 6600 objects to be successful or failed - currently there are: successful=0 failed=0 count=0]
+W0224 07:26:23.865752 4162847 simple_test_executor.go:186] Got errors during step execution: [namespace agent-sandbox-1 object agent-claim-6604 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6609 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6614 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6619 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6620 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6605 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6610 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6602 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6601 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6607 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6615 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6621 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6616 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6606 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6600 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6612 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6611 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6622 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6617 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6603 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6613 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6625 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6608 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6624 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6623 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6618 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6628 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6629 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6627 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6630 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6626 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6631 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6632 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6634 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6635 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6636 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6637 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6633 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6638 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6639 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6640 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6641 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6642 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6643 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6644 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6645 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6646 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6647 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6648 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6649 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6650 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6651 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6652 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6653 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6654 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6655 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6656 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6657 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6658 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6659 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6660 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6661 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6662 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6663 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6664 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6665 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6666 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6667 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6668 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6669 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6670 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6671 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6672 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6673 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6674 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6675 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6676 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6677 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6678 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6679 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6680 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6681 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6682 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6683 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6684 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6685 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6686 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6687 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6688 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6689 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6690 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6691 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6692 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6693 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6694 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6695 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6696 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6697 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6698 creation error: namespaces "agent-sandbox-1" not found
+namespace agent-sandbox-1 object agent-claim-6699 creation error: namespaces "agent-sandbox-1" not found]

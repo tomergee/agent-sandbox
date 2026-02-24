@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="0" errors="0" time="116.843">
+      <testcase name="agent-sandbox-split-burst-load-test overall (/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-split-burst-load-test.yaml)" classname="ClusterLoaderV2" time="116.83778007"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 01] Start Startup Latency Measurement [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.717715189"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 02] Setup Sandbox Template" classname="ClusterLoaderV2" time="0.345783463"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 03] Setup Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.349780228"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 04] Wait for Warm Pool Pods to be Ready [00] - WaitForWarmPoolPods" classname="ClusterLoaderV2" time="10.657939715"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 05] Create Burst 1 Sandbox Claims" classname="ClusterLoaderV2" time="1.167371439"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 06] Wait for Burst 1 Sandbox Claims to be Ready [00] - WaitForBurst1SandboxClaims" classname="ClusterLoaderV2" time="2.67614323"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 07] Pause 20 Seconds Between Bursts [00] - WaitBetweenBursts" classname="ClusterLoaderV2" time="20.108189883"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 08] Create Burst 2 Sandbox Claims" classname="ClusterLoaderV2" time="1.160620777"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 09] Wait for Burst 2 Sandbox Claims to be Ready [00] - WaitForBurst2SandboxClaims" classname="ClusterLoaderV2" time="4.659493487"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 10] Pause for Data Collection [00] - WaitAfterReady" classname="ClusterLoaderV2" time="15.105334318"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 11] Gather Results [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="1.3880037889999999"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 12] Delete Sandbox Claims" classname="ClusterLoaderV2" time="2.24208831"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 13] Delete Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.147964055"></testcase>
+      <testcase name="agent-sandbox-split-burst-load-test: [step: 14] Delete Sandbox Templates" classname="ClusterLoaderV2" time="0.147162502"></testcase>
+  </testsuite>

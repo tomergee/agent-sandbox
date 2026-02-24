@@ -1,0 +1,18 @@
+namespace/agent-sandbox-system unchanged
+customresourcedefinition.apiextensions.k8s.io/sandboxclaims.extensions.agents.x-k8s.io unchanged
+customresourcedefinition.apiextensions.k8s.io/sandboxwarmpools.extensions.agents.x-k8s.io unchanged
+customresourcedefinition.apiextensions.k8s.io/sandboxtemplates.extensions.agents.x-k8s.io unchanged
+customresourcedefinition.apiextensions.k8s.io/sandboxes.agents.x-k8s.io unchanged
+serviceaccount/agent-sandbox-controller unchanged
+clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller unchanged
+service/agent-sandbox-controller unchanged
+statefulset.apps/agent-sandbox-controller configured
+clusterrolebinding.rbac.authorization.k8s.io/agent-sandbox-controller-extensions unchanged
+clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller unchanged
+clusterrole.rbac.authorization.k8s.io/agent-sandbox-controller-extensions unchanged
+statefulset.apps/agent-sandbox-controller configured
+ko://sigs.k8s.io/agent-sandbox/cmd/agent-sandbox-controller: replaced image with gcr.io/gke-ai-eco-dev/agent-sandbox-controller:v20260224-v0.1.1.post3-14-g7467726-dirty
+ko://sigs.k8s.io/agent-sandbox/cmd/agent-sandbox-controller: replaced image with gcr.io/gke-ai-eco-dev/agent-sandbox-controller:v20260224-v0.1.1.post3-14-g7467726-dirty
+Applying 5 prerequisite manifests (Namespace, CRDs)...
+Applying 8 other manifests...
+Deployment complete.

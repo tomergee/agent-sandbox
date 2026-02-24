@@ -86,3 +86,41 @@ Simply adding parallel threads isn't enough; the underlying `client-go` library 
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{...})
 ```
+
+## Results After Tuning `MaxConcurrentReconciles` and `client-go` limits
+After applying the `MaxConcurrentReconciles=50` and QPS=200 configuration changes to both the `Sandbox` and `SandboxClaim` controllers, the load test (Test 4: WP=75, QPS=200) was re-run to validate the fix.
+
+### Massive Latency Improvement
+The tuning successfully resolved the artificial single-threaded queueing. The overall Readiness Latency for a burst of 100 `SandboxClaim` objects dropped dramatically:
+
+| Metric | Before Tuning (QPS=200) | After Tuning (QPS=200) | Improvement |
+| :--- | :--- | :--- | :--- |
+| **Wait for Sandbox Claims to be Ready** | 10.976 seconds | 4.934 seconds | **55% Faster** |
+| **Average SandboxClaim Readiness Latency** (Prometheus) | 10.047 seconds | 2.710 seconds | **73% Faster** |
+| **Average SandboxClaim Creation Latency** (Prometheus) | 4.641 seconds | 1.577 seconds | **66% Faster** |
+
+### Conclusion
+By overriding the single-threaded default (`MaxConcurrentReconciles`) and boosting the Kubernetes API client rate limits (`rest.Config.QPS`), the `agent-sandbox` controller can now process concurrent bursts of `Sandbox` and `SandboxClaim` resources in parallel. This prevents the controller itself from becoming a bottleneck during high-throughput agent sandbox leasing architectures like Moltbot.
+
+## Extreme Scale Split-Burst Test (480 Nodes)
+A massive scale test was conducted on a 480-node GKE cluster to simulate real-world RL agent training workloads (like Tunix), which require large Warm Pools and bursty SandboxClaim allocation over hundreds of nodes.
+
+### Test Configuration
+- **Cluster Size**: 480 `e2-standard-8` nodes
+- **Warm Pool**: 200 `Sandbox` pods
+- **Load Pattern (Split-Burst)**:
+  - Burst 1: 100 `SandboxClaims` at 100 QPS
+  - Pause: 20 seconds
+  - Burst 2: 100 `SandboxClaims` at 100 QPS
+
+### Results
+The tuned `agent-sandbox` controller (with `MaxConcurrentReconciles=50`, `QPS=200`, `Burst=300`) handled the extreme scale flawlessly, instantly adopting from the 200-pod Warm Pool without any API "thundering herd" conflicts.
+
+| Phase | Metric | Latency |
+| :--- | :--- | :--- |
+| **Warmup** | Wait for 200 Warm Pool Pods to be Ready | **10.65 seconds** |
+| **Burst 1** | Wait for first 100 SandboxClaims to be Ready | **2.67 seconds** |
+| **Burst 2** | Wait for second 100 SandboxClaims to be Ready | **4.65 seconds** |
+
+### Conclusion
+The final load testing confirms that the `agent-sandbox` controller is highly scalable. By eliminating the default `controller-runtime` single-threaded bottlenecks and adopting a randomized Warm Pool selection strategy, the controller comfortably supports massive RL training workloads with negligible API overhead (processing bursts of 100 claims in under 5 seconds at 480-node scale).

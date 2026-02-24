@@ -1,0 +1,25 @@
+I0224 07:01:54.993093   14536 dns_performance-k8s-hostnames.go:58] Registering measurement: DNS Performance for K8s Hostnames
+I0224 07:01:54.993257   14536 network_performance_measurement.go:90] Registering Network Performance Measurement
+I0224 07:01:54.993978   14536 clusterloader.go:283] Listening on 8000
+E0224 07:01:54.996996   14536 clusterloader.go:285] http server unexpectedly ended: listen tcp 127.0.0.1:8000: bind: address already in use
+I0224 07:01:56.192490   14536 clusterloader.go:169] ClusterConfig.Nodes set to 483
+E0224 07:01:56.494146   14536 clusterloader.go:194] Getting master name error: master node not found
+E0224 07:01:56.745432   14536 clusterloader.go:203] Getting master external ip error: didn't find any ExternalIP master IPs
+E0224 07:01:57.014553   14536 clusterloader.go:212] Getting master internal ip error: didn't find any InternalIP master IPs
+I0224 07:01:57.014604   14536 clusterloader.go:320] Using config: {ClusterConfig:{KubeConfigPath:/usr/local/google/home/glottman/.kube/config RunFromCluster:false Nodes:483 Provider:0xc0003368b0 EtcdCertificatePath:/etc/srv/kubernetes/pki/etcd-apiserver-server.crt EtcdKeyPath:/etc/srv/kubernetes/pki/etcd-apiserver-server.key EtcdInsecurePort:2382 MasterIPs:[] MasterInternalIPs:[] MasterName: MasterDNSEndpoint: DeleteStaleNamespaces:false DeleteAutomanagedNamespaces:true APIServerPprofByClientEnabled:true KubeletPort:10250 K8SClientsNumber:5 SkipClusterVerification:false} ReportDir: ExecServiceConfig:{Enable:true ImageRegistry:registry.k8s.io} ModifierConfig:{OverwriteTestConfig:[] SkipSteps:[]} PrometheusConfig:{TearDownServer:true EnableServer:false EnablePushgateway:false ScrapeEtcd:false ScrapeNodeExporter:false ScrapeWindowsNodeExporter:false ScrapeKubelets:false ScrapeMasterKubelets:false ScrapeKubeProxy:true KubeProxySelectorKey:component ScrapeKubeStateMetrics:false ScrapeMetricsServerMetrics:false ScrapeNodeLocalDNS:false ScrapeAnet:false ScrapeNetworkPolicies:false ScrapeMastersWithPublicIPs:false APIServerScrapePort:443 SnapshotProject: AdditionalMonitorsPath: StorageClassProvisioner:kubernetes.io/gce-pd StorageClassVolumeType:pd-ssd PVCStorageClass:ssd ReadyTimeout:15m0s PrometheusMemoryRequest:10Gi} OverridePaths:[/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/tomer_local/testoverrides.json]}
+I0224 07:01:57.539557   14536 framework.go:74] Creating framework with 5 clients and "/usr/local/google/home/glottman/.kube/config" kubeconfig.
+I0224 07:01:57.917435   14536 framework.go:276] Applying templates for "manifest/exec_deployment.yaml"
+W0224 07:02:08.628417   14536 imagepreload.go:93] No images specified. Skipping image preloading
+I0224 07:02:08.679470   14536 clusterloader.go:474] Test config successfully dumped to: generatedConfig_agent-sandbox-10k-rapid-burst.yaml
+I0224 07:02:08.679515   14536 clusterloader.go:254] --------------------------------------------------------------------------------
+I0224 07:02:08.679521   14536 clusterloader.go:255] Running /usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-10k-rapid-burst.yaml
+I0224 07:02:08.679530   14536 clusterloader.go:256] --------------------------------------------------------------------------------
+E0224 07:02:09.066925   14536 clusterloader.go:264] --------------------------------------------------------------------------------
+E0224 07:02:09.066961   14536 clusterloader.go:265] Test Finished
+E0224 07:02:09.066966   14536 clusterloader.go:266]   Test: /usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-10k-rapid-burst.yaml
+E0224 07:02:09.066975   14536 clusterloader.go:267]   Status: Fail
+E0224 07:02:09.066980   14536 clusterloader.go:269]   Errors: [error while preparing test namespaces: pre-existing automanaged namespaces found]
+E0224 07:02:09.066984   14536 clusterloader.go:271] --------------------------------------------------------------------------------
+
+JUnit report was created: /usr/local/google/home/glottman/dev/jetski_main/perf-tests/clusterloader2/junit.xml
+F0224 07:02:34.515535   14536 clusterloader.go:440] 1 tests have failed!
