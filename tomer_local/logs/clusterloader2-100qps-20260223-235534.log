@@ -1,0 +1,37 @@
+I0223 23:55:35.754693 3637115 dns_performance-k8s-hostnames.go:58] Registering measurement: DNS Performance for K8s Hostnames
+I0223 23:55:35.755327 3637115 network_performance_measurement.go:90] Registering Network Performance Measurement
+I0223 23:55:35.757496 3637115 clusterloader.go:283] Listening on 8000
+I0223 23:55:36.425262 3637115 clusterloader.go:169] ClusterConfig.Nodes set to 53
+E0223 23:55:36.662446 3637115 clusterloader.go:194] Getting master name error: master node not found
+E0223 23:55:36.816881 3637115 clusterloader.go:203] Getting master external ip error: didn't find any ExternalIP master IPs
+E0223 23:55:36.963417 3637115 clusterloader.go:212] Getting master internal ip error: didn't find any InternalIP master IPs
+I0223 23:55:36.963640 3637115 clusterloader.go:320] Using config: {ClusterConfig:{KubeConfigPath:/usr/local/google/home/glottman/.kube/config RunFromCluster:false Nodes:53 Provider:0xc000132fa0 EtcdCertificatePath:/etc/srv/kubernetes/pki/etcd-apiserver-server.crt EtcdKeyPath:/etc/srv/kubernetes/pki/etcd-apiserver-server.key EtcdInsecurePort:2382 MasterIPs:[] MasterInternalIPs:[] MasterName: MasterDNSEndpoint: DeleteStaleNamespaces:false DeleteAutomanagedNamespaces:true APIServerPprofByClientEnabled:true KubeletPort:10250 K8SClientsNumber:1 SkipClusterVerification:false} ReportDir: ExecServiceConfig:{Enable:true ImageRegistry:registry.k8s.io} ModifierConfig:{OverwriteTestConfig:[] SkipSteps:[]} PrometheusConfig:{TearDownServer:true EnableServer:false EnablePushgateway:false ScrapeEtcd:false ScrapeNodeExporter:false ScrapeWindowsNodeExporter:false ScrapeKubelets:false ScrapeMasterKubelets:false ScrapeKubeProxy:true KubeProxySelectorKey:component ScrapeKubeStateMetrics:false ScrapeMetricsServerMetrics:false ScrapeNodeLocalDNS:false ScrapeAnet:false ScrapeNetworkPolicies:false ScrapeMastersWithPublicIPs:false APIServerScrapePort:443 SnapshotProject: AdditionalMonitorsPath: StorageClassProvisioner:kubernetes.io/gce-pd StorageClassVolumeType:pd-ssd PVCStorageClass:ssd ReadyTimeout:15m0s PrometheusMemoryRequest:10Gi} OverridePaths:[/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/tomer_local/testoverrides.json]}
+I0223 23:55:37.249291 3637115 framework.go:74] Creating framework with 1 clients and "/usr/local/google/home/glottman/.kube/config" kubeconfig.
+I0223 23:55:37.626286 3637115 framework.go:276] Applying templates for "manifest/exec_deployment.yaml"
+W0223 23:55:48.146499 3637115 imagepreload.go:93] No images specified. Skipping image preloading
+I0223 23:55:48.153669 3637115 clusterloader.go:474] Test config successfully dumped to: generatedConfig_agent-sandbox-claim-load-test.yaml
+I0223 23:55:48.153694 3637115 clusterloader.go:254] --------------------------------------------------------------------------------
+I0223 23:55:48.153700 3637115 clusterloader.go:255] Running /usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-claim-load-test.yaml
+I0223 23:55:48.153707 3637115 clusterloader.go:256] --------------------------------------------------------------------------------
+I0223 23:56:21.543241 3637115 phase_latency.go:168] PodStartupLatency: perc50: 1.063237396s, perc90: 1.6793992s, perc99: 1.995194744s
+I0223 23:56:21.543338 3637115 phase_latency.go:168] PodStartupLatency: perc50: 1.019403226s, perc90: 1.399810485s, perc99: 1.469028503s
+I0223 23:56:21.543388 3637115 phase_latency.go:168] PodStartupLatency: perc50: 1.627809942s, perc90: 2.054454491s, perc99: 2.403921031s; threshold 5s
+I0223 23:56:21.543423 3637115 phase_latency.go:168] PodStartupLatency: perc50: 571.853ms, perc90: 949.174ms, perc99: 1.044874s
+I0223 23:56:21.543457 3637115 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 301.267ms, perc99: 441.393ms
+I0223 23:56:21.543730 3637115 phase_latency.go:168] PodStartupLatency: perc50: 1.019403226s, perc90: 1.399810485s, perc99: 1.469028503s
+I0223 23:56:21.543787 3637115 phase_latency.go:168] PodStartupLatency: perc50: 1.627809942s, perc90: 2.054454491s, perc99: 2.403921031s; threshold 5s
+I0223 23:56:21.543829 3637115 phase_latency.go:168] PodStartupLatency: perc50: 571.853ms, perc90: 949.174ms, perc99: 1.044874s
+I0223 23:56:21.543861 3637115 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 301.267ms, perc99: 441.393ms
+I0223 23:56:21.543897 3637115 phase_latency.go:168] PodStartupLatency: perc50: 1.063237396s, perc90: 1.6793992s, perc99: 1.995194744s
+I0223 23:56:21.543960 3637115 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s; threshold 5s
+I0223 23:56:21.543984 3637115 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0223 23:56:21.544014 3637115 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0223 23:56:21.544042 3637115 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0223 23:56:21.544072 3637115 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0223 23:57:13.272311 3637115 clusterloader.go:264] --------------------------------------------------------------------------------
+I0223 23:57:13.272343 3637115 clusterloader.go:265] Test Finished
+I0223 23:57:13.272349 3637115 clusterloader.go:266]   Test: /usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-claim-load-test.yaml
+I0223 23:57:13.272357 3637115 clusterloader.go:267]   Status: Success
+I0223 23:57:13.272362 3637115 clusterloader.go:271] --------------------------------------------------------------------------------
+
+JUnit report was created: /usr/local/google/home/glottman/dev/jetski_main/perf-tests/clusterloader2/junit.xml

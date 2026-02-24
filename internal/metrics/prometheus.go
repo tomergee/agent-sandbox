@@ -14,6 +14,14 @@ var (
 		},
 		[]string{"namespace"}, // We can segment by namespace if needed
 	)
+	SandboxClaimCreatedLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "sandbox_claim_created_latency_seconds",
+			Help:    "Latency from claim creation in API to controller creating the Sandbox",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"namespace"},
+	)
 	SandboxCreatedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "sandbox_created_total",
@@ -34,6 +42,7 @@ func init() {
 	// Register the custom metrics with the global prometheus registry
 	metrics.Registry.MustRegister(
 		SandboxClaimReadyLatency,
+		SandboxClaimCreatedLatency,
 		SandboxCreatedTotal,
 		SandboxClaimCreatedTotal,
 	)

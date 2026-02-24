@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="0" errors="0" time="85.187">
+      <testcase name="agent-sandbox-claim-load-test overall (/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-claim-load-test.yaml)" classname="ClusterLoaderV2" time="85.177201427"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 01] Setup Sandbox Template" classname="ClusterLoaderV2" time="0.142629808"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 02] Start Startup Latency Measurement [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.518326146"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 03] Create Sandbox Claims" classname="ClusterLoaderV2" time="1.209928815"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 04] Wait for Sandboxes to be Ready [00] - WaitForSandboxes" classname="ClusterLoaderV2" time="15.31074026"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 05] Wait for Sandbox Claims to be Ready [00] - WaitForSandboxClaims" classname="ClusterLoaderV2" time="0.522336246"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 06] Pause for Data Collection [00] - WaitAfterReady" classname="ClusterLoaderV2" time="15.104992894"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 07] Gather Results [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.281794725"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 08] Delete Sandbox Claims" classname="ClusterLoaderV2" time="1.183568943"></testcase>
+      <testcase name="agent-sandbox-claim-load-test: [step: 09] Delete Sandbox Templates" classname="ClusterLoaderV2" time="0.147793778"></testcase>
+  </testsuite>

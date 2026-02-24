@@ -1,0 +1,16 @@
+# HELP sandbox_claim_ready_latency_seconds Latency from claim creation to readiness in seconds
+# TYPE sandbox_claim_ready_latency_seconds histogram
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.005"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.01"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.025"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.05"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.1"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.25"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.5"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="1"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="2.5"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="5"} 2
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="10"} 47
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="+Inf"} 100
+sandbox_claim_ready_latency_seconds_sum{namespace="agent-sandbox-1"} 984.3045283510002
+sandbox_claim_ready_latency_seconds_count{namespace="agent-sandbox-1"} 100

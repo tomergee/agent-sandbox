@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="3" errors="0" time="145.317">
+      <testcase name="agent-sandbox-warmpool-load-test overall (../../agent-sandbox/dev/load-test/agent-sandbox-warmpool-load-test.yaml)" classname="ClusterLoaderV2" time="145.312471955">
+          <failure type="Failure">:0&#xA;[reading template (cluster-loader-sandbox-warmpool.yaml) error: parsing error: template: :8: function &#34;IntParam&#34; not defined&#xA;measurement call WaitForRunningPods - WaitForWarmPoolPods error: got context deadline exceeded while waiting for 100 pods to be running in labelSelector(agents.x-k8s.io/pool) - summary of pods : Pods: 0 out of 100 created, 0 running (0 updated), 0 pending scheduled, 0 not scheduled, 0 inactive, 0 terminating, 0 unknown, 0 runningButNotReady ]&#xA;:0</failure>
+      </testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 01] Setup Sandbox Template" classname="ClusterLoaderV2" time="0.140514904"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 02] Setup Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.010919699">
+          <failure type="Failure">:0&#xA;[reading template (cluster-loader-sandbox-warmpool.yaml) error: parsing error: template: :8: function &#34;IntParam&#34; not defined]&#xA;:0</failure>
+      </testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 03] Wait for Warm Pool Pods to be Ready [00] - WaitForWarmPoolPods" classname="ClusterLoaderV2" time="60.315191046">
+          <failure type="Failure">:0&#xA;[measurement call WaitForRunningPods - WaitForWarmPoolPods error: got context deadline exceeded while waiting for 100 pods to be running in labelSelector(agents.x-k8s.io/pool) - summary of pods : Pods: 0 out of 100 created, 0 running (0 updated), 0 pending scheduled, 0 not scheduled, 0 inactive, 0 terminating, 0 unknown, 0 runningButNotReady ]&#xA;:0</failure>
+      </testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 04] Start Startup Latency Measurement [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.348545141"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 05] Create Sandbox Claims" classname="ClusterLoaderV2" time="1.163335615"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 06] Wait for Sandboxes to be Ready [00] - WaitForSandboxes" classname="ClusterLoaderV2" time="15.261963812"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 07] Wait for Sandbox Claims to be Ready [00] - WaitForSandboxClaims" classname="ClusterLoaderV2" time="0.437493006"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 08] Pause for Data Collection [00] - WaitAfterReady" classname="ClusterLoaderV2" time="15.105719759"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 09] Gather Results [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.291156682"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 10] Delete Sandbox Claims" classname="ClusterLoaderV2" time="1.185401966"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 11] Delete Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.128911041"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 12] Delete Sandbox Templates" classname="ClusterLoaderV2" time="0.146999655"></testcase>
+  </testsuite>

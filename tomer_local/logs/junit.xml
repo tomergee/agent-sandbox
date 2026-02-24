@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="0" errors="0" time="61.073">
+      <testcase name="agent-sandbox-load-test overall (../../agent-sandbox/dev/load-test/agent-sandbox-load-test.yaml)" classname="ClusterLoaderV2" time="61.070634661"></testcase>
+      <testcase name="agent-sandbox-load-test: [step: 01] Start Startup Latency Measurement [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.514786916"></testcase>
+      <testcase name="agent-sandbox-load-test: [step: 02] Create Sandboxes" classname="ClusterLoaderV2" time="2.04992255"></testcase>
+      <testcase name="agent-sandbox-load-test: [step: 03] Wait for Sandboxes to be Ready [00] - WaitForSandboxes" classname="ClusterLoaderV2" time="5.306540365"></testcase>
+      <testcase name="agent-sandbox-load-test: [step: 04] Gather Results [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.365035159"></testcase>
+      <testcase name="agent-sandbox-load-test: [step: 05] Delete Sandboxes" classname="ClusterLoaderV2" time="2.06547031"></testcase>
+  </testsuite>

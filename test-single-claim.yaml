@@ -1,0 +1,21 @@
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: test-template
+spec:
+  podTemplate:
+    spec:
+      containers:
+      - name: container-0
+        image: alpine:latest
+        command: ["/bin/sh", "-c", "sleep 3600"]
+---
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: test-pool
+  namespace: default
+spec:
+  replicas: 1
+  sandboxTemplateRef:
+    name: test-template

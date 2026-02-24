@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"sort"
 	"time"
@@ -30,9 +31,9 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/kubectl/pkg/util/podutils"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -392,11 +393,10 @@ func (r *SandboxClaimReconciler) tryAdoptPodFromPool(ctx context.Context, claim 
 		return nil, nil
 	}
 
-	// Sort pods using podutils.ByLogging to select the best available pod.
-	sort.Sort(podutils.ByLogging(candidates))
-
-	// Get the first available pod
-	pod := candidates[0]
+	// Instead of deterministic sorting which causes thundering herd conflicts when scaling,
+	// we randomly select a candidate.
+	randomIndex := rand.Intn(len(candidates))
+	pod := candidates[randomIndex]
 	log.Info("Adopting pod from warm pool", "pod", pod.Name)
 
 	// Remove the pool labels
@@ -529,7 +529,12 @@ func (r *SandboxClaimReconciler) getOrCreateSandbox(ctx context.Context, claim *
 		return sandbox, nil
 	}
 
-	return r.createSandbox(ctx, claim, template)
+	newSandbox, err := r.createSandbox(ctx, claim, template)
+	if err == nil && newSandbox != nil {
+		latencySeconds := time.Since(claim.CreationTimestamp.Time).Seconds()
+		asmetrics.SandboxClaimCreatedLatency.WithLabelValues(claim.Namespace).Observe(latencySeconds)
+	}
+	return newSandbox, err
 }
 
 func (r *SandboxClaimReconciler) getTemplate(ctx context.Context, claim *extensionsv1alpha1.SandboxClaim) (*extensionsv1alpha1.SandboxTemplate, error) {
@@ -552,6 +557,7 @@ func (r *SandboxClaimReconciler) getTemplate(ctx context.Context, claim *extensi
 // SetupWithManager sets up the controller with the Manager.
 func (r *SandboxClaimReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 50}).
 		For(&extensionsv1alpha1.SandboxClaim{}).
 		Owns(&sandboxv1alpha1.Sandbox{}).
 		Complete(r)

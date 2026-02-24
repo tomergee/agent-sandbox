@@ -143,7 +143,12 @@ func main() {
 		}
 	}
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	// Initialize Kubernetes Config with higher QPS and Burst limits for load testing
+	cfg := ctrl.GetConfigOrDie()
+	cfg.QPS = 200
+	cfg.Burst = 300
+
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsOpts,
 		HealthProbeBindAddress: probeAddr,
