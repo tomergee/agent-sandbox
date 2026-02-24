@@ -1,0 +1,35 @@
+# HELP sandbox_claim_created_latency_seconds Latency from claim creation in API to controller creating the Sandbox
+# TYPE sandbox_claim_created_latency_seconds histogram
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.005"} 0
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.01"} 0
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.025"} 0
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.05"} 0
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.1"} 5
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.25"} 122
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.5"} 571
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="1"} 1606
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="2.5"} 2100
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="5"} 2100
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="10"} 2100
+sandbox_claim_created_latency_seconds_bucket{namespace="agent-sandbox-1",le="+Inf"} 2100
+sandbox_claim_created_latency_seconds_sum{namespace="agent-sandbox-1"} 1556.0124598240016
+sandbox_claim_created_latency_seconds_count{namespace="agent-sandbox-1"} 2100
+# HELP sandbox_claim_created_total Total number of SandboxClaim resources created
+# TYPE sandbox_claim_created_total counter
+sandbox_claim_created_total{namespace="agent-sandbox-1"} 2100
+# HELP sandbox_claim_ready_latency_seconds Latency from claim creation to readiness in seconds
+# TYPE sandbox_claim_ready_latency_seconds histogram
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.005"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.01"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.025"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.05"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.1"} 0
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.25"} 4
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="0.5"} 136
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="1"} 986
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="2.5"} 2453
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="5"} 2460
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="10"} 2461
+sandbox_claim_ready_latency_seconds_bucket{namespace="agent-sandbox-1",le="+Inf"} 28083
+sandbox_claim_ready_latency_seconds_sum{namespace="agent-sandbox-1"} 6.1720510382672146e+07
+sandbox_claim_ready_latency_seconds_count{namespace="agent-sandbox-1"} 28083

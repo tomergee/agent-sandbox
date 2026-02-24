@@ -124,3 +124,10 @@ The tuned `agent-sandbox` controller (with `MaxConcurrentReconciles=50`, `QPS=20
 
 ### Conclusion
 The final load testing confirms that the `agent-sandbox` controller is highly scalable. By eliminating the default `controller-runtime` single-threaded bottlenecks and adopting a randomized Warm Pool selection strategy, the controller comfortably supports massive RL training workloads with negligible API overhead (processing bursts of 100 claims in under 5 seconds at 480-node scale).
+
+### Run 17 Update: 5,000 Rapid Burst Stress Test Stall
+A follow-up stress test attempting 5,000 rapid bursts (50 claims every 20 seconds with a 200-replica warmpool) revealed a stability limit. The test stalled at approximately 2,101 `SandboxClaims` due to a massive `CrashLoopBackOff` failure across the warmpool pods in the `agent-sandbox-1` namespace. Over 550 pods were observed crashing immediately after logging their start-up message, despite the `SandboxTemplate` correctly specifying a `sleep 300` command. This crash-looping prevented `SandboxClaims` from transitioning to the `Ready` state, resulting in `ClusterLoader2` hanging indefinitely as it waited for the objects to meet the required pacing targets.
+
+#### Root Cause Analysis: Short-Lived Pod Churn
+Further investigation revealed that the "crashing" behavior was actually a byproduct of the `SandboxTemplate` configuration. The template used a `sleep 300` command, causing pods to exit successfully after 5 minutes. In a test designed to run for ~35 minutes, this triggered a constant restart cycle. As pods hit Kubernetes' restart back-off limits (`CrashLoopBackOff`), they became temporarily unavailable. This flickering readiness across hundreds of pods prevented `clusterloader2` from finding a stable window of 50 concurrent ready claims, effectively hanging the test logic.
+

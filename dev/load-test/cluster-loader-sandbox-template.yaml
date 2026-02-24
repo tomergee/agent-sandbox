@@ -11,4 +11,4 @@ spec:
       containers:
       - name: sandbox
         image: alpine
-        command: ["/bin/sh", "-c", "echo 'Hello from the Agent Sandbox!'; sleep 300"]
+        command: ["/bin/sh", "-c", "echo 'Hello from the Agent Sandbox!'; sleep 28800"]

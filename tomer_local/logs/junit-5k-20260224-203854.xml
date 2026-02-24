@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="1" errors="0" time="0.222">
+      <testcase name="agent-sandbox-5k-rapid-burst overall (/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-5k-rapid-burst.yaml)" classname="ClusterLoaderV2" time="0.130431458">
+          <failure type="Failure">:0&#xA;[error while preparing test namespaces: pre-existing automanaged namespaces found]&#xA;:0</failure>
+      </testcase>
+  </testsuite>
