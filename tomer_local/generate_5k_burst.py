@@ -1,15 +1,22 @@
-{{$replicas := DefaultParam .CL2_REPLICAS 100}}
-{{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
-{{$qps := DefaultParam .CL2_QPS 300}}
-{{$namespacePrefix := DefaultParam .CL2_NAMESPACE_PREFIX "agent-sandbox"}}
-name: agent-sandbox-warmpool-load-test
+import sys
+
+def generate_yaml():
+    total_claims = 5000
+    burst_size = 50
+    num_bursts = total_claims // burst_size
+    
+    yaml_content = f"""{{{{$namespaces := DefaultParam .CL2_NAMESPACES 1}}}}
+{{{{$qps := DefaultParam .CL2_QPS 100}}}}
+{{{{$warmpool_size := DefaultParam .CL2_WARMPOOL_SIZE 200}}}}
+{{{{$namespacePrefix := DefaultParam .CL2_NAMESPACE_PREFIX "agent-sandbox"}}}}
+name: agent-sandbox-5k-rapid-burst
 namespace:
-  number: {{$namespaces}}
-  prefix: {{$namespacePrefix}}
+  number: {{{{$namespaces}}}}
+  prefix: {{{{$namespacePrefix}}}}
 tuningSets:
 - name: BurstCreate
   qpsLoad:
-    qps: {{$qps}}
+    qps: {{{{$qps}}}}
 steps:
 - name: Start Startup Latency Measurement
   measurements:
@@ -21,7 +28,7 @@ steps:
 
 - name: Setup Sandbox Template
   phases:
-  - namespaceRange: {min: 1, max: {{$namespaces}}}
+  - namespaceRange: {{min: 1, max: {{{{$namespaces}}}}}}
     replicasPerNamespace: 1
     tuningSet: BurstCreate
     objectBundle:
@@ -30,12 +37,12 @@ steps:
 
 - name: Setup Sandbox Warm Pool
   phases:
-  - namespaceRange: {min: 1, max: {{$namespaces}}}
+  - namespaceRange: {{min: 1, max: {{{{$namespaces}}}}}}
     replicasPerNamespace: 1
     tuningSet: BurstCreate
     objectBundle:
     - basename: warmpool
-      objectTemplatePath: "cluster-loader-sandbox-warmpool.yaml"
+      objectTemplatePath: "cluster-loader-sandbox-warmpool-custom.yaml"
 
 - name: Wait for Warm Pool Pods to be Ready
   measurements:
@@ -44,41 +51,47 @@ steps:
     Params:
       action: start
       labelSelector: "agents.x-k8s.io/pool"
-      desiredPodCount: {{MultiplyInt 200 $namespaces}}
+      desiredPodCount: {{{{MultiplyInt 200 $namespaces}}}}
+"""
 
-- name: Create Sandbox Claims
+    for i in range(1, num_bursts + 1):
+        target_claims = i * burst_size
+        yaml_content += f"""
+- name: Create Burst {i} Sandbox Claims ({burst_size})
   phases:
-  - namespaceRange: {min: 1, max: {{$namespaces}}}
-    replicasPerNamespace: {{$replicas}}
+  - namespaceRange: {{min: 1, max: {{{{$namespaces}}}}}}
+    replicasPerNamespace: {target_claims}
     tuningSet: BurstCreate
     objectBundle:
     - basename: agent-claim
       objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
 
-- name: Wait for Sandbox Claims to be Ready
+- name: Wait for Burst {i} Sandbox Claims to be Ready
   measurements:
-  - Identifier: WaitForSandboxClaims
+  - Identifier: WaitForBurst{i}SandboxClaims
     Method: WaitForGenericK8sObjects
     Params:
       action: start
       objectGroup: extensions.agents.x-k8s.io
       objectVersion: v1alpha1
       objectResource: sandboxclaims
-      namespaceRange: {min: 1, max: {{$namespaces}}}
+      namespaceRange: {{min: 1, max: {{{{$namespaces}}}}}}
       successfulConditions: ["Ready=True"]
       failedConditions: []
-      minDesiredObjectCount: {{MultiplyInt $replicas $namespaces}}
+      minDesiredObjectCount: {{{{MultiplyInt {target_claims} $namespaces}}}}
       maxFailedObjectCount: 0
-      timeout: 10m
+      timeout: 60m
       refreshInterval: 20ms
 
-- name: Pause for Data Collection
+- name: Pause 20 Seconds After Burst {i}
   measurements:
-  - Identifier: WaitAfterReady
+  - Identifier: WaitAfterBurst{i}
     Method: Sleep
     Params:
-      duration: 15s
+      duration: 20s
+"""
 
+    yaml_content += """
 - name: Gather Results
   measurements:
   - Identifier: SandboxStartupLatency
@@ -103,7 +116,7 @@ steps:
     tuningSet: BurstCreate
     objectBundle:
     - basename: warmpool
-      objectTemplatePath: "cluster-loader-sandbox-warmpool.yaml"
+      objectTemplatePath: "cluster-loader-sandbox-warmpool-custom.yaml"
 
 - name: Delete Sandbox Templates
   phases:
@@ -113,3 +126,8 @@ steps:
     objectBundle:
     - basename: template
       objectTemplatePath: "cluster-loader-sandbox-template.yaml"
+"""
+    print(yaml_content)
+
+if __name__ == "__main__":
+    generate_yaml()

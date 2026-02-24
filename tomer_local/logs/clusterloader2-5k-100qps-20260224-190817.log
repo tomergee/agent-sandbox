@@ -1,0 +1,15 @@
+I0224 19:08:17.981428  798835 dns_performance-k8s-hostnames.go:58] Registering measurement: DNS Performance for K8s Hostnames
+I0224 19:08:17.982616  798835 network_performance_measurement.go:90] Registering Network Performance Measurement
+I0224 19:08:17.991834  798835 clusterloader.go:283] Listening on 8000
+I0224 19:08:18.813979  798835 clusterloader.go:169] ClusterConfig.Nodes set to 103
+E0224 19:08:19.053832  798835 clusterloader.go:194] Getting master name error: master node not found
+E0224 19:08:19.206146  798835 clusterloader.go:203] Getting master external ip error: didn't find any ExternalIP master IPs
+E0224 19:08:19.358060  798835 clusterloader.go:212] Getting master internal ip error: didn't find any InternalIP master IPs
+I0224 19:08:19.358104  798835 clusterloader.go:320] Using config: {ClusterConfig:{KubeConfigPath:/usr/local/google/home/glottman/.kube/config RunFromCluster:false Nodes:103 Provider:0xc0000120b0 EtcdCertificatePath:/etc/srv/kubernetes/pki/etcd-apiserver-server.crt EtcdKeyPath:/etc/srv/kubernetes/pki/etcd-apiserver-server.key EtcdInsecurePort:2382 MasterIPs:[] MasterInternalIPs:[] MasterName: MasterDNSEndpoint: DeleteStaleNamespaces:false DeleteAutomanagedNamespaces:true APIServerPprofByClientEnabled:true KubeletPort:10250 K8SClientsNumber:2 SkipClusterVerification:false} ReportDir: ExecServiceConfig:{Enable:true ImageRegistry:registry.k8s.io} ModifierConfig:{OverwriteTestConfig:[] SkipSteps:[]} PrometheusConfig:{TearDownServer:true EnableServer:false EnablePushgateway:false ScrapeEtcd:false ScrapeNodeExporter:false ScrapeWindowsNodeExporter:false ScrapeKubelets:false ScrapeMasterKubelets:false ScrapeKubeProxy:true KubeProxySelectorKey:component ScrapeKubeStateMetrics:false ScrapeMetricsServerMetrics:false ScrapeNodeLocalDNS:false ScrapeAnet:false ScrapeNetworkPolicies:false ScrapeMastersWithPublicIPs:false APIServerScrapePort:443 SnapshotProject: AdditionalMonitorsPath: StorageClassProvisioner:kubernetes.io/gce-pd StorageClassVolumeType:pd-ssd PVCStorageClass:ssd ReadyTimeout:15m0s PrometheusMemoryRequest:10Gi} OverridePaths:[/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/tomer_local/testoverrides.json]}
+I0224 19:08:19.671281  798835 framework.go:74] Creating framework with 2 clients and "/usr/local/google/home/glottman/.kube/config" kubeconfig.
+I0224 19:08:20.028186  798835 framework.go:276] Applying templates for "manifest/exec_deployment.yaml"
+W0224 19:08:30.829453  798835 imagepreload.go:93] No images specified. Skipping image preloading
+I0224 19:08:30.915861  798835 clusterloader.go:474] Test config successfully dumped to: generatedConfig_agent-sandbox-5k-rapid-burst.yaml
+I0224 19:08:30.915903  798835 clusterloader.go:254] --------------------------------------------------------------------------------
+I0224 19:08:30.915910  798835 clusterloader.go:255] Running /usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-5k-rapid-burst.yaml
+I0224 19:08:30.915919  798835 clusterloader.go:256] --------------------------------------------------------------------------------

@@ -5,4 +5,4 @@ metadata:
 spec:
   sandboxTemplateRef:
     name: template-{{.Index}}
-  replicas: 75
+  replicas: 200
