@@ -7,6 +7,7 @@
 - **Cluster Strategy:** Custom programmatic `agent-sandbox-5k-rapid-burst.yaml` 
 - **Target Objects:** `SandboxWarmPool` & `SandboxClaim`
 - **Total Namespaces:** 1 
+- **Cluster Size:** 100 Nodes (load-test-pool-50)
 - **Warm Pool Replicas:** 200
 - **Total Load Pattern:** 100 sequential bursts
 - **Burst Size:** 50 `SandboxClaims` per burst
