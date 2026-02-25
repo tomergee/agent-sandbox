@@ -1,5 +1,8 @@
 # Supporting Concurrency in Controllers
 
+## Background
+During recent scale-testing and production-readiness efforts, we have transitioned the `agent-sandbox` to support massive-scale deployments, specifically targeting bursty workloads where thousands of sandboxes are launched simultaneously. These high-pressure scenarios revealed critical limitations in the default Kubernetes controller scaling, necessitating the deep optimizations detailed in this document to handle the "thundering herd" effect and ensure low-latency sandbox delivery.
+
 ## The Problem
 In high-throughput environments—such as scaling the `agent-sandbox` to process bursts of 5,000 to 10,000 `SandboxClaim` and `Sandbox` objects simultaneously—the default configurations of the Kubernetes `controller-runtime` framework introduce severe processing bottlenecks. 
 
