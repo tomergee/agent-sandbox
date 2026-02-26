@@ -14,7 +14,7 @@ Execute an extreme-scale load test that continuously bursts 100 `SandboxClaim` o
      - *Phase N Pause*: Wait 20 seconds.
 
 2. **Wrapper Script**:
-   Create a new wrapper script `tomer_local/run-20k-load-test.sh` that sets the proper overrides `CL2_WARMPOOL_SIZE=1000` and points to the newly generated 20k burst YAML file.
+   Create a new wrapper script `tomer_local/scripts/run-20k-load-test.sh` that sets the proper overrides `CL2_WARMPOOL_SIZE=1000` and points to the newly generated 20k burst YAML file.
 
 3. **Report Generation**:
    After the run completes, I will extract the Prometheus metrics and the `junit.xml` XML outputs to calculate the `P50`, `P90`, and `P99` percentiles. I will write a custom Python parser to split the results of all 200 bursts and render them efficiently into the final Markdown report tables.

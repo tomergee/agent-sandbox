@@ -1,5 +1,5 @@
 #!/bin/bash
-# run-20k-load-test.sh
+# run-split-load-test.sh
 QPS=${1:-100}
 RUN_ID=$(date +%Y%m%d-%H%M%S)
 
@@ -10,14 +10,16 @@ LOGS_DIR="${AGENTS_DIR}/tomer_local/logs"
 
 mkdir -p "$LOGS_DIR"
 
-echo "=== Starting Agent Sandbox 20,000 Burst Load Test ==="
+echo "=== Starting Agent Sandbox Split Burst Load Test ==="
 echo "QPS: $QPS, Run ID: $RUN_ID"
 
 # 1. Create overrides exactly to the user's specs
-cat <<EOF > "${AGENTS_DIR}/tomer_local/testoverrides.json"
+cat <<EOF > "${AGENTS_DIR}/tomer_local/scripts/testoverrides.json"
 {
   "CL2_QPS": $QPS,
-  "CL2_WARMPOOL_SIZE": 1000
+  "CL2_REPLICAS_BURST1": 100,
+  "CL2_REPLICAS_TOTAL": 200,
+  "CL2_WARMPOOL_SIZE": 200
 }
 EOF
 
@@ -30,19 +32,19 @@ cd "$CL2_DIR"
 echo "Cleaning up any existing clusterloader2 namespaces..."
 kubectl delete namespace -l e2e-framework=clusterloader2 --wait=true 2>/dev/null
 
-echo "Running clusterloader2 20,000 Sandbox Burst Test..."
+echo "Running clusterloader2 Extreme Split-Burst Test (Wait for 480 nodes to spin up first!)..."
 ./clusterloader2 \
-  --testconfig="${AGENTS_DIR}/dev/load-test/agent-sandbox-20k-burst-load-test.yaml" \
+  --testconfig="${AGENTS_DIR}/dev/load-test/agent-sandbox-split-burst-load-test.yaml" \
   --kubeconfig=$HOME/.kube/config \
   --provider=gke \
-  --testoverrides="${AGENTS_DIR}/tomer_local/testoverrides.json" \
-  2>&1 | tee "${LOGS_DIR}/clusterloader2-20k-${QPS}qps-${RUN_ID}.log"
+  --testoverrides="${AGENTS_DIR}/tomer_local/scripts/testoverrides.json" \
+  2>&1 | tee "${LOGS_DIR}/clusterloader2-splitburst-${QPS}qps-${RUN_ID}.log"
 
 echo "ClusterLoader2 execution complete. Scraping Prometheus metrics..."
-curl -s http://localhost:8080/metrics | grep -E "sandbox_.*_latency_seconds|sandbox_.*_created_total" > "${LOGS_DIR}/prom-metrics-20k-${RUN_ID}.txt"
+curl -s http://localhost:8080/metrics | grep -E "sandbox_.*_latency_seconds|sandbox_.*_created_total" > "${LOGS_DIR}/prom-metrics-splitburst-${RUN_ID}.txt"
 
 if [ -f "junit.xml" ]; then
-  mv junit.xml "${LOGS_DIR}/junit-20k-${RUN_ID}.xml"
+  mv junit.xml "${LOGS_DIR}/junit-splitburst-${RUN_ID}.xml"
 fi
 
-echo "=== 20,000 Burst Load Test $RUN_ID Complete ==="
+echo "=== Split Burst Load Test $RUN_ID Complete ==="

@@ -20,7 +20,7 @@ echo "=== Starting Agent Sandbox Load Test ==="
 echo "QPS: $QPS, Replicas: $REPLICAS, Run ID: $RUN_ID"
 
 # 1. Create overrides
-cat <<EOF > "${AGENTS_DIR}/tomer_local/testoverrides.json"
+cat <<EOF > "${AGENTS_DIR}/tomer_local/scripts/testoverrides.json"
 {
   "CL2_QPS": $QPS,
   "CL2_REPLICAS": $REPLICAS
@@ -66,7 +66,7 @@ echo "Running clusterloader2 (this will take a few minutes)..."
   --testconfig="${AGENTS_DIR}/dev/load-test/agent-sandbox-warmpool-load-test.yaml" \
   --kubeconfig=$HOME/.kube/config \
   --provider=gke \
-  --testoverrides="${AGENTS_DIR}/tomer_local/testoverrides.json" \
+  --testoverrides="${AGENTS_DIR}/tomer_local/scripts/testoverrides.json" \
   2>&1 | tee "${LOGS_DIR}/clusterloader2-${QPS}qps-${RUN_ID}.log"
 
 echo "ClusterLoader2 execution complete. Scraping Prometheus metrics..."

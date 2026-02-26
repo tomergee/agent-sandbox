@@ -13,7 +13,7 @@ mkdir -p "$LOGS_DIR"
 echo "=== Starting Agent Sandbox 5,000 Burst Load Test ==="
 echo "QPS: $QPS, Run ID: $RUN_ID"
 
-cat <<JSON_EOF > "${AGENTS_DIR}/tomer_local/testoverrides.json"
+cat <<JSON_EOF > "${AGENTS_DIR}/tomer_local/scripts/testoverrides.json"
 {
   "CL2_QPS": $QPS,
   "CL2_WARMPOOL_SIZE": 200
@@ -32,7 +32,7 @@ echo "Running clusterloader2 5,000 Sandbox Burst Test..."
   --testconfig="${AGENTS_DIR}/dev/load-test/agent-sandbox-5k-rapid-burst.yaml" \
   --kubeconfig=$HOME/.kube/config \
   --provider=gke \
-  --testoverrides="${AGENTS_DIR}/tomer_local/testoverrides.json" \
+  --testoverrides="${AGENTS_DIR}/tomer_local/scripts/testoverrides.json" \
   2>&1 | tee "${LOGS_DIR}/clusterloader2-5k-${QPS}qps-${RUN_ID}.log"
 
 echo "ClusterLoader2 execution complete. Scraping Prometheus metrics..."
