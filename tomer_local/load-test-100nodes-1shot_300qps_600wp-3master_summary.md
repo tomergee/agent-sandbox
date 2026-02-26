@@ -20,13 +20,22 @@
 
 ## Results
 
+### Phase Durations (`junit.xml`)
+- **Wait for Warm Pool Pods to be Ready (600):** 45.373 seconds
+- **Create Sandbox Claims:** ~1.322 seconds (avg)
+- **Wait for Sandbox Claims to be Ready:** ~2.071 seconds (avg)
+- **Pause Between Bursts:** 10.105 seconds
+
 ### Latency Summary
 
 | Metric | P50 | P90 | P99 | Phase Description |
 | :--- | :--- | :--- | :--- | :--- |
-| **Pod Startup Latency** | 1.96s | 2.55s | 2.85s | Run to Watch (CL2 observed) |
+| **Pod Startup Latency** | ~1.43s | ~1.84s | ~1.97s | Run to Watch (CL2 observed) |
+| **SandboxClaim Created** | ~319ms | ~712ms | ~833ms | API Creation to Controller Observed |
+| **SandboxClaim Readiness**| ~1.96s | ~2.55s | ~2.85s | API Creation to Readiness |
 
-*\*The **Pod Startup Latency** represents the time from pod scheduled/running to reachable. At 2.85s P99, it proves the increased 600 warm pool size was seamlessly handled by the infrastructure without degradation.*
+*\*The **Pod Startup Latency** represents the time from pod scheduled/running to reachable.*
+*\*The **SandboxClaim Readiness** latency at 2.85s P99 proves the increased 600 warm pool size was seamlessly handled by the infrastructure without degradation. Controller tracking (Created) is phenomenally fast at ~833ms for P99.*
 
 ## Analysis
 The test completed successfully with zero failures and all latency targets for pod startup respected. Doubling the warm pool from 300 to 600 did not introduce any significant instability. The metrics demonstrate exceptional resilience of the tuned regional control plane under heavy background synchronization load.
