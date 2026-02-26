@@ -24,6 +24,7 @@ Right now, the architecture daisy-chains status updates:
 ### 5. Bump Client-Go Limits Again
 If we look at the math: 300 claims adopting 300 pods + creating 300 Sandboxes + creating 300 NetworkPolicies = ~900-1200 write API calls.
 - **The Fix**: The current tuning of `QPS: 300` and `Burst: 450` means it physically takes 3-4 seconds just to transmit these requests from the client-go queue. If the regional master nodes can handle it, bumping to `QPS: 1000` and `Burst: 2000` would allow the controller to flush all these requests to the API server almost instantaneously.
+  - **[Completed]**: Update applied in `cmd/agent-sandbox-controller/main.go` on Feb 26, 2026. `cfg.QPS` bumped to 1000 and `cfg.Burst` to 2000.
 
 ### 6. Add an Informer Index for Unclaimed Pods
 Currently, `r.List` fetches *all* pods matching the template hash (e.g., all 600 pods), and then iterates through them in Go to filter out pods already owned by a claim or being deleted.
