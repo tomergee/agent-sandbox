@@ -145,8 +145,8 @@ func main() {
 
 	// Initialize Kubernetes Config with higher QPS and Burst limits for load testing
 	cfg := ctrl.GetConfigOrDie()
-	cfg.QPS = 200
-	cfg.Burst = 300
+	cfg.QPS = 300
+	cfg.Burst = 450
 
 	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme:                 scheme,

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="4" errors="0" time="771.97">
+      <testcase name="agent-sandbox-warmpool-load-test overall (/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-warmpool-load-test.yaml)" classname="ClusterLoaderV2" time="771.963867718">
+          <failure type="Failure">:0&#xA;[measurement call WaitForRunningPods - WaitForWarmPoolPods error: got context deadline exceeded while waiting for 200 pods to be running in labelSelector(agents.x-k8s.io/pool) - summary of pods : Pods: 205 out of 200 created, 19 running (19 updated), 87 pending scheduled, 96 not scheduled, 3 inactive, 3 terminating, 0 unknown, 0 runningButNotReady &#xA;measurement call WaitForGenericK8sObjects - WaitForSandboxClaims error: WaitForGenericK8sObjects: objects: &#34;extensions.agents.x-k8s.io/v1alpha1, Resource=sandboxclaims&#34;, namespaces: &#34;agent-sandbox-(1-1)&#34;: timeout while waiting for 300 objects to be successful or failed - currently there are: successful=294 failed=0 count=300&#xA;measurement call PodStartupLatency - SandboxStartupLatency error: pod startup: too high latency 50th percentile: got 1m7.404635498s expected: 5s]&#xA;:0</failure>
+      </testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 01] Start Startup Latency Measurement [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.521487004"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 02] Setup Sandbox Template" classname="ClusterLoaderV2" time="0.154523042"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 03] Setup Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.157702582"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 04] Wait for Warm Pool Pods to be Ready [00] - WaitForWarmPoolPods" classname="ClusterLoaderV2" time="60.10672616">
+          <failure type="Failure">:0&#xA;[measurement call WaitForRunningPods - WaitForWarmPoolPods error: got context deadline exceeded while waiting for 200 pods to be running in labelSelector(agents.x-k8s.io/pool) - summary of pods : Pods: 205 out of 200 created, 19 running (19 updated), 87 pending scheduled, 96 not scheduled, 3 inactive, 3 terminating, 0 unknown, 0 runningButNotReady ]&#xA;:0</failure>
+      </testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 05] Create Sandbox Claims" classname="ClusterLoaderV2" time="6.480659449"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 06] Wait for Sandbox Claims to be Ready [00] - WaitForSandboxClaims" classname="ClusterLoaderV2" time="600.162529343">
+          <failure type="Failure">:0&#xA;[measurement call WaitForGenericK8sObjects - WaitForSandboxClaims error: WaitForGenericK8sObjects: objects: &#34;extensions.agents.x-k8s.io/v1alpha1, Resource=sandboxclaims&#34;, namespaces: &#34;agent-sandbox-(1-1)&#34;: timeout while waiting for 300 objects to be successful or failed - currently there are: successful=294 failed=0 count=300]&#xA;:0</failure>
+      </testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 07] Pause for Data Collection [00] - WaitAfterReady" classname="ClusterLoaderV2" time="15.32748635"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 08] Gather Results [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.796004958">
+          <failure type="Failure">:0&#xA;[measurement call PodStartupLatency - SandboxStartupLatency error: pod startup: too high latency 50th percentile: got 1m7.404635498s expected: 5s]&#xA;:0</failure>
+      </testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 09] Delete Sandbox Claims" classname="ClusterLoaderV2" time="2.140526088"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 10] Delete Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.162787465"></testcase>
+      <testcase name="agent-sandbox-warmpool-load-test: [step: 11] Delete Sandbox Templates" classname="ClusterLoaderV2" time="0.155976944"></testcase>
+  </testsuite>

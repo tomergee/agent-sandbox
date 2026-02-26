@@ -1,0 +1,48 @@
+I0225 23:27:41.493477 2492473 dns_performance-k8s-hostnames.go:58] Registering measurement: DNS Performance for K8s Hostnames
+I0225 23:27:41.493626 2492473 network_performance_measurement.go:90] Registering Network Performance Measurement
+I0225 23:27:41.494472 2492473 clusterloader.go:283] Listening on 8000
+I0225 23:27:42.071718 2492473 clusterloader.go:169] ClusterConfig.Nodes set to 27
+E0225 23:27:42.203979 2492473 clusterloader.go:194] Getting master name error: master node not found
+E0225 23:27:42.336358 2492473 clusterloader.go:203] Getting master external ip error: didn't find any ExternalIP master IPs
+E0225 23:27:42.464458 2492473 clusterloader.go:212] Getting master internal ip error: didn't find any InternalIP master IPs
+I0225 23:27:42.464497 2492473 clusterloader.go:320] Using config: {ClusterConfig:{KubeConfigPath:/usr/local/google/home/glottman/.kube/config RunFromCluster:false Nodes:27 Provider:0xc00028dd50 EtcdCertificatePath:/etc/srv/kubernetes/pki/etcd-apiserver-server.crt EtcdKeyPath:/etc/srv/kubernetes/pki/etcd-apiserver-server.key EtcdInsecurePort:2382 MasterIPs:[] MasterInternalIPs:[] MasterName: MasterDNSEndpoint: DeleteStaleNamespaces:false DeleteAutomanagedNamespaces:true APIServerPprofByClientEnabled:true KubeletPort:10250 K8SClientsNumber:1 SkipClusterVerification:false} ReportDir: ExecServiceConfig:{Enable:true ImageRegistry:registry.k8s.io} ModifierConfig:{OverwriteTestConfig:[] SkipSteps:[]} PrometheusConfig:{TearDownServer:true EnableServer:false EnablePushgateway:false ScrapeEtcd:false ScrapeNodeExporter:false ScrapeWindowsNodeExporter:false ScrapeKubelets:false ScrapeMasterKubelets:false ScrapeKubeProxy:true KubeProxySelectorKey:component ScrapeKubeStateMetrics:false ScrapeMetricsServerMetrics:false ScrapeNodeLocalDNS:false ScrapeAnet:false ScrapeNetworkPolicies:false ScrapeMastersWithPublicIPs:false APIServerScrapePort:443 SnapshotProject: AdditionalMonitorsPath: StorageClassProvisioner:kubernetes.io/gce-pd StorageClassVolumeType:pd-ssd PVCStorageClass:ssd ReadyTimeout:15m0s PrometheusMemoryRequest:10Gi} OverridePaths:[/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/tomer_local/testoverrides.json]}
+I0225 23:27:42.731741 2492473 framework.go:74] Creating framework with 1 clients and "/usr/local/google/home/glottman/.kube/config" kubeconfig.
+I0225 23:27:43.095688 2492473 framework.go:276] Applying templates for "manifest/exec_deployment.yaml"
+I0225 23:27:43.468313 2492473 warnings.go:110] "Warning: autopilot-default-resources-mutator:Autopilot updated Deployment cluster-loader/exec-pod: defaulted unspecified 'cpu' resource for containers [agnhost] (see http://g.co/gke/autopilot-defaults)."
+W0225 23:27:53.623850 2492473 imagepreload.go:93] No images specified. Skipping image preloading
+I0225 23:27:53.628875 2492473 clusterloader.go:474] Test config successfully dumped to: generatedConfig_agent-sandbox-warmpool-load-test.yaml
+I0225 23:27:53.628904 2492473 clusterloader.go:254] --------------------------------------------------------------------------------
+I0225 23:27:53.628913 2492473 clusterloader.go:255] Running /usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-warmpool-load-test.yaml
+I0225 23:27:53.628922 2492473 clusterloader.go:256] --------------------------------------------------------------------------------
+W0225 23:28:05.180238 2492473 wait_for_pods.go:119] WaitForRunningPods: labelSelector(agents.x-k8s.io/pool): 88 pods appeared: warmpool-0-frlpq, warmpool-0-q2j7j, warmpool-0-6kd7n, warmpool-0-gjg54, warmpool-0-4grsj, warmpool-0-k4bxs, warmpool-0-7zp6l, warmpool-0-kd94s, warmpool-0-q6m22, warmpool-0-fqk8l, warmpool-0-ltb7n, warmpool-0-6qq6s, warmpool-0-54pln, warmpool-0-nftc6, warmpool-0-wxtlj, warmpool-0-kh22b, warmpool-0-f9692, warmpool-0-l9jkm, warmpool-0-6m5r4, warmpool-0-qz7r8, warmpool-0-qmtlc, warmpool-0-zr87k, warmpool-0-n4xd5, warmpool-0-crpd9, warmpool-0-gpf4p, warmpool-0-qmtvz, warmpool-0-spj89, warmpool-0-s4gwm, warmpool-0-bzzmm, warmpool-0-5dpzz, warmpool-0-g722z, warmpool-0-pgncd, warmpool-0-cfmvw, warmpool-0-ghnbd, warmpool-0-fghbv, warmpool-0-4zmsv, warmpool-0-rnzdl, warmpool-0-865l5, warmpool-0-62c62, warmpool-0-s2pxh, warmpool-0-zpcc8, warmpool-0-2blpq, warmpool-0-xnzdl, warmpool-0-qtwg6, warmpool-0-77lps, warmpool-0-9q4n9, warmpool-0-stmp4, warmpool-0-6ddrg, warmpool-0-sxj7h, warmpool-0-gg29f, warmpool-0-vxx7c, warmpool-0-mfh4h, warmpool-0-9694x, warmpool-0-wnck7, warmpool-0-z88dz, warmpool-0-2d9n6, warmpool-0-kgqqx, warmpool-0-4dgpc, warmpool-0-r2fwm, warmpool-0-xq8cr, warmpool-0-7qdt7, warmpool-0-gcvdx, warmpool-0-lk2ln, warmpool-0-l2nqs, warmpool-0-vgd28, warmpool-0-hpg5t, warmpool-0-pqmdg, warmpool-0-qxjsh, warmpool-0-7vx7c, warmpool-0-fghkv, warmpool-0-jx9jj, warmpool-0-jr7zm, warmpool-0-44rvs, warmpool-0-vdl8x, warmpool-0-mntwj, warmpool-0-p7ms7, warmpool-0-n78k7, warmpool-0-qzsrz, warmpool-0-tbrlp, warmpool-0-x2xlc, warmpool-0-fxjmb, warmpool-0-p7qmd, warmpool-0-9rn65, warmpool-0-p4pjw, warmpool-0-zjz86, warmpool-0-8f9rb, warmpool-0-tcr2m, warmpool-0-q4mps
+W0225 23:28:10.181594 2492473 wait_for_pods.go:119] WaitForRunningPods: labelSelector(agents.x-k8s.io/pool): 9 pods appeared: warmpool-0-nmcfs, warmpool-0-29blq, warmpool-0-2xr2f, warmpool-0-9ktnh, warmpool-0-r9dl9, warmpool-0-h4ntd, warmpool-0-r5nxk, warmpool-0-8qzg4, warmpool-0-t5zjj
+W0225 23:28:45.189274 2492473 wait_for_pods.go:119] WaitForRunningPods: labelSelector(agents.x-k8s.io/pool): 1 pods appeared: warmpool-0-khmlt
+W0225 23:28:54.980583 2492473 simple_test_executor.go:186] Got errors during step execution: [measurement call WaitForRunningPods - WaitForWarmPoolPods error: got context deadline exceeded while waiting for 200 pods to be running in labelSelector(agents.x-k8s.io/pool) - summary of pods : Pods: 300 out of 200 created, 187 running (187 updated), 113 pending scheduled, 0 not scheduled, 0 inactive, 1 terminating, 0 unknown, 0 runningButNotReady ]
+I0225 23:31:18.082783 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0225 23:31:18.082954 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0225 23:31:18.083134 2492473 phase_latency.go:168] PodStartupLatency: perc50: 1.500479424s, perc90: 5.904945808s, perc99: 10.966429659s
+I0225 23:31:18.083253 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0225 23:31:18.083405 2492473 phase_latency.go:168] PodStartupLatency: perc50: 58.352253742s, perc90: 1m13.316209686s, perc99: 1m26.74657891s; threshold 5s
+E0225 23:31:18.083424 2492473 pod_startup_latency.go:277] PodStartupLatency: labelSelector(app=agent-sandbox-load-test): pod startup: too high latency 50th percentile: got 58.352253742s expected: 5s
+I0225 23:31:18.083872 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0225 23:31:18.084080 2492473 phase_latency.go:168] PodStartupLatency: perc50: 1.500479424s, perc90: 5.904945808s, perc99: 10.966429659s
+I0225 23:31:18.084233 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0225 23:31:18.084419 2492473 phase_latency.go:168] PodStartupLatency: perc50: 58.352253742s, perc90: 1m13.316209686s, perc99: 1m26.74657891s; threshold 5s
+I0225 23:31:18.084577 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+E0225 23:31:18.084595 2492473 pod_startup_latency.go:277] StatelessPodStartupLatency: labelSelector(app=agent-sandbox-load-test): pod startup: too high latency 50th percentile: got 58.352253742s expected: 5s
+I0225 23:31:18.084752 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0225 23:31:18.084869 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s; threshold 5s
+I0225 23:31:18.084976 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0225 23:31:18.085121 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+I0225 23:31:18.085273 2492473 phase_latency.go:168] PodStartupLatency: perc50: 0s, perc90: 0s, perc99: 0s
+W0225 23:31:18.085347 2492473 simple_test_executor.go:186] Got errors during step execution: [measurement call PodStartupLatency - SandboxStartupLatency error: pod startup: too high latency 50th percentile: got 58.352253742s expected: 5s]
+E0225 23:32:41.694049 2492473 clusterloader.go:264] --------------------------------------------------------------------------------
+E0225 23:32:41.694092 2492473 clusterloader.go:265] Test Finished
+E0225 23:32:41.694102 2492473 clusterloader.go:266]   Test: /usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-warmpool-load-test.yaml
+E0225 23:32:41.694116 2492473 clusterloader.go:267]   Status: Fail
+E0225 23:32:41.694123 2492473 clusterloader.go:269]   Errors: [measurement call WaitForRunningPods - WaitForWarmPoolPods error: got context deadline exceeded while waiting for 200 pods to be running in labelSelector(agents.x-k8s.io/pool) - summary of pods : Pods: 300 out of 200 created, 187 running (187 updated), 113 pending scheduled, 0 not scheduled, 0 inactive, 1 terminating, 0 unknown, 0 runningButNotReady 
+measurement call PodStartupLatency - SandboxStartupLatency error: pod startup: too high latency 50th percentile: got 58.352253742s expected: 5s]
+E0225 23:32:41.694136 2492473 clusterloader.go:271] --------------------------------------------------------------------------------
+
+JUnit report was created: /usr/local/google/home/glottman/dev/jetski_main/perf-tests/clusterloader2/junit.xml
+F0225 23:33:02.126094 2492473 clusterloader.go:440] 3 tests have failed!
