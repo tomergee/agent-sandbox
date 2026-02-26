@@ -13,6 +13,7 @@
 - **Total Load Pattern:** 20 Bursts
 - **Burst Size:** 300 `SandboxClaims` per burst
 - **Burst Pause Time:** 20 seconds
+- **Controller Image:** `us.gcr.io/gke-ai-eco-dev/agent-sandbox-controller:tuned-300qps-v2`
 - **Controller Configuration:**
     *   `MaxConcurrentReconciles`: 300
     *   `client-go` QPS: 1000

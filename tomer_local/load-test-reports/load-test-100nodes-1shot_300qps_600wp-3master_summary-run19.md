@@ -13,6 +13,7 @@
 - **Warm Pool Replicas:** 600
 - **Total Load Pattern:** 1 Burst
 - **Burst Size:** 300 `SandboxClaims`
+- **Controller Image:** `us.gcr.io/gke-ai-eco-dev/agent-sandbox-controller:tuned-300qps-v2`
 - **Controller Configuration:**
     *   `MaxConcurrentReconciles`: 300 (Sandbox, SandboxClaim, SandboxWarmPool)
     *   `client-go` QPS: 300
