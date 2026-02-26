@@ -1,4 +1,4 @@
 {
   "CL2_QPS": 300,
-  "CL2_REPLICAS": 300
+  "CL2_WARMPOOL_SIZE": 1000
 }

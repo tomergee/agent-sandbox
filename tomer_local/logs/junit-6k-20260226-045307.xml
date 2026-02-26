@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <testsuite name="ClusterLoaderV2" tests="0" failures="0" errors="0" time="707.448">
+      <testcase name="agent-sandbox-6k-rapid-burst overall (/usr/local/google/home/glottman/dev/jetski_main/agent-sandbox/dev/load-test/agent-sandbox-6k-rapid-burst.yaml)" classname="ClusterLoaderV2" time="707.425943742"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 01] Start Startup Latency Measurement [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="0.517940542"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 02] Setup Sandbox Template" classname="ClusterLoaderV2" time="0.367440814"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 03] Setup Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.150302501"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 04] Wait for Warm Pool Pods to be Ready [00] - WaitForWarmPoolPods" classname="ClusterLoaderV2" time="55.377966605"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 05] Create Burst 1 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.299700304"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 06] Wait for Burst 1 Sandbox Claims to be Ready [00] - WaitForBurst1SandboxClaims" classname="ClusterLoaderV2" time="3.501601709"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 07] Pause 20 Seconds After Burst 1 [00] - WaitAfterBurst1" classname="ClusterLoaderV2" time="20.106275678"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 08] Create Burst 2 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.306708221"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 09] Wait for Burst 2 Sandbox Claims to be Ready [00] - WaitForBurst2SandboxClaims" classname="ClusterLoaderV2" time="1.8011012910000002"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 10] Pause 20 Seconds After Burst 2 [00] - WaitAfterBurst2" classname="ClusterLoaderV2" time="20.110398161"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 11] Create Burst 3 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.2970937089999999"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 12] Wait for Burst 3 Sandbox Claims to be Ready [00] - WaitForBurst3SandboxClaims" classname="ClusterLoaderV2" time="2.054307844"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 13] Pause 20 Seconds After Burst 3 [00] - WaitAfterBurst3" classname="ClusterLoaderV2" time="20.112205803"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 14] Create Burst 4 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.339415541"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 15] Wait for Burst 4 Sandbox Claims to be Ready [00] - WaitForBurst4SandboxClaims" classname="ClusterLoaderV2" time="1.95287204"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 16] Pause 20 Seconds After Burst 4 [00] - WaitAfterBurst4" classname="ClusterLoaderV2" time="20.105416345"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 17] Create Burst 5 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.301517114"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 18] Wait for Burst 5 Sandbox Claims to be Ready [00] - WaitForBurst5SandboxClaims" classname="ClusterLoaderV2" time="1.999938279"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 19] Pause 20 Seconds After Burst 5 [00] - WaitAfterBurst5" classname="ClusterLoaderV2" time="20.10850362"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 20] Create Burst 6 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.309694364"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 21] Wait for Burst 6 Sandbox Claims to be Ready [00] - WaitForBurst6SandboxClaims" classname="ClusterLoaderV2" time="1.9968675230000001"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 22] Pause 20 Seconds After Burst 6 [00] - WaitAfterBurst6" classname="ClusterLoaderV2" time="20.110659764"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 23] Create Burst 7 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.478203465"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 24] Wait for Burst 7 Sandbox Claims to be Ready [00] - WaitForBurst7SandboxClaims" classname="ClusterLoaderV2" time="2.1725881400000002"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 25] Pause 20 Seconds After Burst 7 [00] - WaitAfterBurst7" classname="ClusterLoaderV2" time="20.108418613"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 26] Create Burst 8 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.361162873"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 27] Wait for Burst 8 Sandbox Claims to be Ready [00] - WaitForBurst8SandboxClaims" classname="ClusterLoaderV2" time="10.08908528"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 28] Pause 20 Seconds After Burst 8 [00] - WaitAfterBurst8" classname="ClusterLoaderV2" time="20.105656833"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 29] Create Burst 9 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.339146103"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 30] Wait for Burst 9 Sandbox Claims to be Ready [00] - WaitForBurst9SandboxClaims" classname="ClusterLoaderV2" time="2.27858424"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 31] Pause 20 Seconds After Burst 9 [00] - WaitAfterBurst9" classname="ClusterLoaderV2" time="20.106477365"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 32] Create Burst 10 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.59701618"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 33] Wait for Burst 10 Sandbox Claims to be Ready [00] - WaitForBurst10SandboxClaims" classname="ClusterLoaderV2" time="2.004993983"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 34] Pause 20 Seconds After Burst 10 [00] - WaitAfterBurst10" classname="ClusterLoaderV2" time="20.113056449"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 35] Create Burst 11 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.293463252"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 36] Wait for Burst 11 Sandbox Claims to be Ready [00] - WaitForBurst11SandboxClaims" classname="ClusterLoaderV2" time="2.271289127"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 37] Pause 20 Seconds After Burst 11 [00] - WaitAfterBurst11" classname="ClusterLoaderV2" time="20.106292213"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 38] Create Burst 12 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.454271723"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 39] Wait for Burst 12 Sandbox Claims to be Ready [00] - WaitForBurst12SandboxClaims" classname="ClusterLoaderV2" time="2.2790265339999998"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 40] Pause 20 Seconds After Burst 12 [00] - WaitAfterBurst12" classname="ClusterLoaderV2" time="20.107484098"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 41] Create Burst 13 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.291536331"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 42] Wait for Burst 13 Sandbox Claims to be Ready [00] - WaitForBurst13SandboxClaims" classname="ClusterLoaderV2" time="2.518578986"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 43] Pause 20 Seconds After Burst 13 [00] - WaitAfterBurst13" classname="ClusterLoaderV2" time="20.107263028"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 44] Create Burst 14 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.397930581"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 45] Wait for Burst 14 Sandbox Claims to be Ready [00] - WaitForBurst14SandboxClaims" classname="ClusterLoaderV2" time="2.354786398"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 46] Pause 20 Seconds After Burst 14 [00] - WaitAfterBurst14" classname="ClusterLoaderV2" time="20.108621203"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 47] Create Burst 15 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.27840983"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 48] Wait for Burst 15 Sandbox Claims to be Ready [00] - WaitForBurst15SandboxClaims" classname="ClusterLoaderV2" time="2.714300048"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 49] Pause 20 Seconds After Burst 15 [00] - WaitAfterBurst15" classname="ClusterLoaderV2" time="20.108943324"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 50] Create Burst 16 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.31876768"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 51] Wait for Burst 16 Sandbox Claims to be Ready [00] - WaitForBurst16SandboxClaims" classname="ClusterLoaderV2" time="2.639327653"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 52] Pause 20 Seconds After Burst 16 [00] - WaitAfterBurst16" classname="ClusterLoaderV2" time="20.106359318"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 53] Create Burst 17 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.329118454"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 54] Wait for Burst 17 Sandbox Claims to be Ready [00] - WaitForBurst17SandboxClaims" classname="ClusterLoaderV2" time="2.246574601"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 55] Pause 20 Seconds After Burst 17 [00] - WaitAfterBurst17" classname="ClusterLoaderV2" time="20.113452035"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 56] Create Burst 18 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.342572982"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 57] Wait for Burst 18 Sandbox Claims to be Ready [00] - WaitForBurst18SandboxClaims" classname="ClusterLoaderV2" time="2.96527631"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 58] Pause 20 Seconds After Burst 18 [00] - WaitAfterBurst18" classname="ClusterLoaderV2" time="20.115452649"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 59] Create Burst 19 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.313469926"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 60] Wait for Burst 19 Sandbox Claims to be Ready [00] - WaitForBurst19SandboxClaims" classname="ClusterLoaderV2" time="3.523558833"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 61] Pause 20 Seconds After Burst 19 [00] - WaitAfterBurst19" classname="ClusterLoaderV2" time="20.108280806"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 62] Create Burst 20 Sandbox Claims (300)" classname="ClusterLoaderV2" time="1.308276342"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 63] Wait for Burst 20 Sandbox Claims to be Ready [00] - WaitForBurst20SandboxClaims" classname="ClusterLoaderV2" time="2.695646124"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 64] Pause 20 Seconds After Burst 20 [00] - WaitAfterBurst20" classname="ClusterLoaderV2" time="20.117548614"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 65] Gather Results [00] - SandboxStartupLatency" classname="ClusterLoaderV2" time="1.543191485"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 66] Delete Sandbox Claims" classname="ClusterLoaderV2" time="28.185390081"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 67] Delete Sandbox Warm Pool" classname="ClusterLoaderV2" time="0.140187871"></testcase>
+      <testcase name="agent-sandbox-6k-rapid-burst: [step: 68] Delete Sandbox Templates" classname="ClusterLoaderV2" time="0.149849518"></testcase>
+  </testsuite>

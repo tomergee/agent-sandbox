@@ -1,0 +1,743 @@
+{{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
+{{$qps := DefaultParam .CL2_QPS 300}}
+{{$warmpool_size := DefaultParam .CL2_WARMPOOL_SIZE 1000}}
+{{$namespacePrefix := DefaultParam .CL2_NAMESPACE_PREFIX "agent-sandbox"}}
+name: agent-sandbox-6k-rapid-burst
+namespace:
+  number: {{$namespaces}}
+  prefix: {{$namespacePrefix}}
+tuningSets:
+- name: BurstCreate
+  qpsLoad:
+    qps: {{$qps}}
+steps:
+- name: Start Startup Latency Measurement
+  measurements:
+  - Identifier: SandboxStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: start
+      labelSelector: "app=agent-sandbox-load-test"
+
+- name: Setup Sandbox Template
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 1
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: template
+      objectTemplatePath: "cluster-loader-sandbox-template.yaml"
+
+- name: Setup Sandbox Warm Pool
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 1
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: warmpool
+      objectTemplatePath: "cluster-loader-sandbox-warmpool-custom.yaml"
+
+- name: Wait for Warm Pool Pods to be Ready
+  measurements:
+  - Identifier: WaitForWarmPoolPods
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      labelSelector: "agents.x-k8s.io/pool"
+      desiredPodCount: {{MultiplyInt 1000 $namespaces}}
+
+- name: Create Burst 1 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 300
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 1 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst1SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 300 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 1
+  measurements:
+  - Identifier: WaitAfterBurst1
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 2 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 600
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 2 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst2SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 600 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 2
+  measurements:
+  - Identifier: WaitAfterBurst2
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 3 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 900
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 3 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst3SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 900 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 3
+  measurements:
+  - Identifier: WaitAfterBurst3
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 4 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 1200
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 4 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst4SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 1200 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 4
+  measurements:
+  - Identifier: WaitAfterBurst4
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 5 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 1500
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 5 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst5SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 1500 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 5
+  measurements:
+  - Identifier: WaitAfterBurst5
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 6 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 1800
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 6 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst6SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 1800 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 6
+  measurements:
+  - Identifier: WaitAfterBurst6
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 7 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 2100
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 7 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst7SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 2100 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 7
+  measurements:
+  - Identifier: WaitAfterBurst7
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 8 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 2400
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 8 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst8SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 2400 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 8
+  measurements:
+  - Identifier: WaitAfterBurst8
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 9 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 2700
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 9 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst9SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 2700 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 9
+  measurements:
+  - Identifier: WaitAfterBurst9
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 10 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 3000
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 10 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst10SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 3000 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 10
+  measurements:
+  - Identifier: WaitAfterBurst10
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 11 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 3300
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 11 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst11SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 3300 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 11
+  measurements:
+  - Identifier: WaitAfterBurst11
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 12 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 3600
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 12 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst12SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 3600 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 12
+  measurements:
+  - Identifier: WaitAfterBurst12
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 13 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 3900
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 13 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst13SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 3900 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 13
+  measurements:
+  - Identifier: WaitAfterBurst13
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 14 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 4200
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 14 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst14SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 4200 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 14
+  measurements:
+  - Identifier: WaitAfterBurst14
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 15 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 4500
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 15 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst15SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 4500 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 15
+  measurements:
+  - Identifier: WaitAfterBurst15
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 16 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 4800
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 16 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst16SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 4800 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 16
+  measurements:
+  - Identifier: WaitAfterBurst16
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 17 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 5100
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 17 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst17SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 5100 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 17
+  measurements:
+  - Identifier: WaitAfterBurst17
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 18 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 5400
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 18 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst18SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 5400 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 18
+  measurements:
+  - Identifier: WaitAfterBurst18
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 19 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 5700
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 19 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst19SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 5700 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 19
+  measurements:
+  - Identifier: WaitAfterBurst19
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Create Burst 20 Sandbox Claims (300)
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 6000
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Burst 20 Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForBurst20SandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt 6000 $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 60m
+      refreshInterval: 20ms
+
+- name: Pause 20 Seconds After Burst 20
+  measurements:
+  - Identifier: WaitAfterBurst20
+    Method: Sleep
+    Params:
+      duration: 20s
+
+- name: Gather Results
+  measurements:
+  - Identifier: SandboxStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: gather
+      labelSelector: "app=agent-sandbox-load-test"
+
+- name: Delete Sandbox Claims
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 0
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Delete Sandbox Warm Pool
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 0
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: warmpool
+      objectTemplatePath: "cluster-loader-sandbox-warmpool-custom.yaml"
+
+- name: Delete Sandbox Templates
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 0
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: template
+      objectTemplatePath: "cluster-loader-sandbox-template.yaml"
+
