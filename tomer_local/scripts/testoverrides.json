@@ -1,0 +1,6 @@
+{
+  "CL2_QPS": 10,
+  "CL2_REPLICAS": 50,
+  "CL2_WARM_POOL_REPLICAS": 50,
+  "CL2_NAMESPACE_PREFIX": "agent-sandbox"
+}
