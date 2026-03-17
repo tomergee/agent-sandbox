@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"sync"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -27,11 +28,10 @@ import (
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/kubectl/pkg/util/podutils"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -49,8 +49,6 @@ const (
 	sandboxLabel = "agents.x-k8s.io/sandbox-name-hash"
 )
 
-// podAvailabilityField is a virtual index key used to track pods that are ready for adoption
-const podAvailabilityField = "status.isAvailable"
 
 // ErrTemplateNotFound is a sentinel error indicating a SandboxTemplate was not found.
 var ErrTemplateNotFound = errors.New("SandboxTemplate not found")
@@ -62,6 +60,7 @@ type SandboxClaimReconciler struct {
 	Recorder                record.EventRecorder
 	Tracer                  asmetrics.Instrumenter
 	MaxConcurrentReconciles int
+	readyClaims             sync.Map
 }
 
 //+kubebuilder:rbac:groups=extensions.agents.x-k8s.io,resources=sandboxclaims,verbs=get;list;watch;create;update;patch;delete
@@ -80,6 +79,8 @@ func (r *SandboxClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	claim := &extensionsv1alpha1.SandboxClaim{}
 	if err := r.Get(ctx, req.NamespacedName, claim); err != nil {
 		if k8errors.IsNotFound(err) {
+			key := req.Namespace + "/" + req.Name
+			r.readyClaims.Delete(key)
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, fmt.Errorf("failed to get sandbox claim %q: %w", req.NamespacedName, err)
@@ -153,7 +154,8 @@ func (r *SandboxClaimReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, errors.Join(reconcileErr, updateErr)
 	}
 
-	r.recordCreationLatencyMetric(claim, originalClaimStatus, sandbox)
+	r.recordCreationLatencyMetric(ctx, claim, *originalClaimStatus, sandbox)
+
 
 	// Determine Result
 	var result ctrl.Result
@@ -256,8 +258,11 @@ func (r *SandboxClaimReconciler) updateStatus(ctx context.Context, oldStatus *ex
 		return nil
 	}
 
-	if err := r.Status().Update(ctx, claim); err != nil {
-		log.Error(err, "Failed to update sandboxclaim status")
+	oldClaim := claim.DeepCopy()
+	oldClaim.Status = *oldStatus
+	patch := client.MergeFrom(oldClaim)
+	if err := r.Status().Patch(ctx, claim, patch); err != nil {
+		log.Error(err, "Failed to patch sandboxclaim status")
 		return err
 	}
 
@@ -343,39 +348,38 @@ func (r *SandboxClaimReconciler) computeAndSetStatus(claim *extensionsv1alpha1.S
 	}
 }
 
-// tryAdoptPodFromPool attempts to find and adopt a pod from the warm pool
-func (r *SandboxClaimReconciler) tryAdoptPodFromPool(ctx context.Context, claim *extensionsv1alpha1.SandboxClaim, sandbox *v1alpha1.Sandbox) (*corev1.Pod, error) {
+// tryAdoptSandboxFromPool attempts to adopt an existing Sandbox from the WarmPool.
+func (r *SandboxClaimReconciler) tryAdoptSandboxFromPool(ctx context.Context, claim *extensionsv1alpha1.SandboxClaim, template *extensionsv1alpha1.SandboxTemplate) (*v1alpha1.Sandbox, error) {
 	log := log.FromContext(ctx)
 
-	podList := &corev1.PodList{}
+	sandboxList := &v1alpha1.SandboxList{}
 
-	// Filter by TemplateRef and "Available" pods
-	err := r.List(ctx, podList, &client.ListOptions{
+	// Filter by TemplateRef
+	err := r.List(ctx, sandboxList, &client.ListOptions{
 		Namespace: claim.Namespace,
 		LabelSelector: labels.SelectorFromSet(labels.Set{
 			sandboxTemplateRefHash: sandboxcontrollers.NameHash(claim.Spec.TemplateRef.Name),
 		}),
-		FieldSelector: fields.OneTermEqualSelector(podAvailabilityField, "true"),
 	})
-	if err != nil || len(podList.Items) == 0 {
+	if err != nil || len(sandboxList.Items) == 0 {
 		return nil, err
 	}
 
-	// Create a slice of pointers for sorting.
-	candidates := make([]*corev1.Pod, len(podList.Items))
-	for i := range podList.Items {
-		candidates[i] = &podList.Items[i]
-	}
-	// Sort pods using podutils.ByLogging to select the "Best" available pod.
-	sort.Sort(podutils.ByLogging(candidates))
+	// Sort Sandboxes by creation timestamp (oldest first) to ensure FIFO
+	sort.Slice(sandboxList.Items, func(i, j int) bool {
+		return sandboxList.Items[i].CreationTimestamp.Time.Before(sandboxList.Items[j].CreationTimestamp.Time)
+	})
 
 	// Determine the search range for collision avoidance.
-	n := len(candidates)
+	n := len(sandboxList.Items)
 	workerCount := r.MaxConcurrentReconciles
 	if workerCount <= 0 {
 		workerCount = 1
 	}
-	searchWindow := min(n, workerCount)
+	searchWindow := n
+	if workerCount < searchWindow {
+		searchWindow = workerCount
+	}
 	// Compute a starting index deterministic to this specific Claim UID.
 	hashValue := sandboxcontrollers.GetNumericHash(string(claim.UID))
 	startIndex := int(hashValue % uint32(searchWindow))
@@ -383,37 +387,79 @@ func (r *SandboxClaimReconciler) tryAdoptPodFromPool(ctx context.Context, claim 
 	// Iterate through the entire list starting from the hashed offset.
 	for i := range n {
 		currIndex := (startIndex + i) % n
-		pod := candidates[currIndex]
-
-		// Remove the pool labels
-		delete(pod.Labels, poolLabel)
-		delete(pod.Labels, sandboxTemplateRefHash)
-
-		// Prepare pod for adoption
-		if pod.Labels == nil {
-			pod.Labels = make(map[string]string)
+		staleSandbox := sandboxList.Items[currIndex]
+		if !staleSandbox.DeletionTimestamp.IsZero() {
+			continue
 		}
 
-		// Remove existing owner references (from SandboxWarmPool)
-		pod.OwnerReferences = nil
+		// Fetch fresh copy to avoid double adoption
+		sandbox := &v1alpha1.Sandbox{}
+		if err := r.Get(ctx, types.NamespacedName{Namespace: staleSandbox.Namespace, Name: staleSandbox.Name}, sandbox); err != nil {
+			log.Error(err, "Failed to fetch fresh sandbox for adoption", "sandbox", staleSandbox.Name)
+			continue
+		}
 
-		// Add labels for the Sandbox and the specific Claim
-		pod.Labels[sandboxLabel] = sandboxcontrollers.NameHash(claim.Name)
-		pod.Labels[extensionsv1alpha1.SandboxIDLabel] = string(claim.UID)
-		// Attempt adoption. API Server handles the final atomic check via resourceVersion.
-		if err := r.Update(ctx, pod); err != nil {
-			if k8errors.IsConflict(err) {
-				// Another worker adopted this pod while we were processing; try next candidate.
-				continue
+		// Check ownership
+		controllerRef := metav1.GetControllerOf(sandbox)
+		if controllerRef == nil || controllerRef.Kind != "SandboxWarmPool" {
+			continue // Skip sandboxes not managed by our warm pool
+		}
+		// Check if sandbox is ready
+		isReady := false
+		for _, condition := range sandbox.Status.Conditions {
+			if condition.Type == string(v1alpha1.SandboxConditionReady) && condition.Status == metav1.ConditionTrue {
+				isReady = true
+				break
 			}
-			return nil, err
+		}
+		if !isReady {
+			continue
 		}
 
-		log.Info("Successfully adopted pod from warm pool", "pod", pod.Name, "sandbox", sandbox.Name)
-		return pod, nil
+		// Check if it has a Claim UID label (should not)
+		if _, exists := sandbox.Labels[extensionsv1alpha1.SandboxIDLabel]; exists {
+			continue
+		}
+
+		log.Info("Attempting to adopt sandbox from warm pool", "sandbox", sandbox.Name)
+
+		// Remove old controller ref
+		var newOwnerRefs []metav1.OwnerReference
+		for _, ref := range sandbox.OwnerReferences {
+			if ref.Controller != nil && *ref.Controller && ref.UID == controllerRef.UID {
+				continue // Skip the warmpool ref
+			}
+			newOwnerRefs = append(newOwnerRefs, ref)
+		}
+		sandbox.OwnerReferences = newOwnerRefs
+
+		// Add new controller ref (SandboxClaim)
+		if err := controllerutil.SetControllerReference(claim, sandbox, r.Scheme); err != nil {
+			log.Error(err, "Failed to set controller reference for adopted sandbox", "sandbox", sandbox.Name)
+			continue
+		}
+
+		// Set labels
+		if sandbox.Labels == nil {
+			sandbox.Labels = make(map[string]string)
+		}
+		sandbox.Labels[extensionsv1alpha1.SandboxIDLabel] = string(claim.UID)
+		
+		// Remove the pool label so the warm pool controller stops reconciling this sandbox
+		delete(sandbox.Labels, poolLabel)
+		delete(sandbox.Labels, sandboxTemplateRefHash)
+
+		// Use Update instead of Patch for Conflict detection
+		if err := r.Update(ctx, sandbox); err != nil {
+			log.Error(err, "Failed to update sandbox for adoption", "sandbox", sandbox.Name)
+			continue
+		}
+
+		log.Info("Successfully adopted sandbox from warm pool", "sandbox", sandbox.Name)
+		return sandbox, nil
 	}
 
-	return nil, nil
+	return nil, nil // No suitable sandbox found or failed to adopt
 }
 
 func (r *SandboxClaimReconciler) createSandbox(ctx context.Context, claim *extensionsv1alpha1.SandboxClaim, template *extensionsv1alpha1.SandboxTemplate) (*v1alpha1.Sandbox, error) {
@@ -456,25 +502,16 @@ func (r *SandboxClaimReconciler) createSandbox(ctx context.Context, claim *exten
 	}
 	sandbox.Spec.PodTemplate.ObjectMeta.Labels[extensionsv1alpha1.SandboxIDLabel] = string(claim.UID)
 
+	// Set the SandboxIDLabel on the Sandbox itself as well
+	if sandbox.Labels == nil {
+		sandbox.Labels = make(map[string]string)
+	}
+	sandbox.Labels[extensionsv1alpha1.SandboxIDLabel] = string(claim.UID)
+
 	if err := controllerutil.SetControllerReference(claim, sandbox, r.Scheme); err != nil {
 		err = fmt.Errorf("failed to set controller reference for sandbox: %w", err)
 		logger.Error(err, "Error creating sandbox for claim", "claimName", claim.Name)
 		return nil, err
-	}
-
-	// Before creating the sandbox, try to adopt a pod from the warm pool
-	adoptedPod, adoptErr := r.tryAdoptPodFromPool(ctx, claim, sandbox)
-	if adoptErr != nil {
-		logger.Error(adoptErr, "Failed to adopt pod from warm pool")
-		return nil, adoptErr
-	}
-
-	if adoptedPod != nil {
-		logger.Info("Adopted pod from warm pool for sandbox", "pod", adoptedPod.Name, "sandbox", sandbox.Name)
-		if sandbox.Annotations == nil {
-			sandbox.Annotations = make(map[string]string)
-		}
-		sandbox.Annotations[sandboxcontrollers.SandboxPodNameAnnotation] = adoptedPod.Name
 	}
 
 	if err := r.Create(ctx, sandbox); err != nil {
@@ -494,22 +531,59 @@ func (r *SandboxClaimReconciler) createSandbox(ctx context.Context, claim *exten
 
 func (r *SandboxClaimReconciler) getOrCreateSandbox(ctx context.Context, claim *extensionsv1alpha1.SandboxClaim, template *extensionsv1alpha1.SandboxTemplate) (*v1alpha1.Sandbox, error) {
 	logger := log.FromContext(ctx)
-	sandbox := &v1alpha1.Sandbox{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: claim.Namespace,
-			Name:      claim.Name,
-		},
-	}
-	if err := r.Get(ctx, client.ObjectKeyFromObject(sandbox), sandbox); err != nil {
-		sandbox = nil
+
+	// 1. Check if we already have a sandbox name in status
+	if claim.Status.SandboxStatus.Name != "" {
+		sandbox := &v1alpha1.Sandbox{}
+		err := r.Get(ctx, types.NamespacedName{Namespace: claim.Namespace, Name: claim.Status.SandboxStatus.Name}, sandbox)
+		if err == nil {
+			logger.Info("Found existing sandbox from status", "name", sandbox.Name)
+			if !metav1.IsControlledBy(sandbox, claim) {
+				err := fmt.Errorf("sandbox %q is not controlled by claim %q. Expected ownership to be updated.", sandbox.Name, claim.Name)
+				logger.Error(err, "Sandbox controller mismatch")
+				return nil, err
+			}
+			return sandbox, nil
+		}
 		if !k8errors.IsNotFound(err) {
-			err = fmt.Errorf("failed to get sandbox %q: %w", claim.Name, err)
 			return nil, err
 		}
+		// NotFound, maybe it was deleted? Fall through.
 	}
 
-	if sandbox != nil {
-		logger.Info("sandbox already exists, skipping update", "name", sandbox.Name)
+	// 2. Try to find by GUID label (most robust)
+	sandboxList := &v1alpha1.SandboxList{}
+	if err := r.List(ctx, sandboxList, client.InNamespace(claim.Namespace), client.MatchingLabels{
+		extensionsv1alpha1.SandboxIDLabel: string(claim.UID),
+	}); err != nil {
+		return nil, err
+	}
+	if len(sandboxList.Items) > 0 {
+		if len(sandboxList.Items) > 1 {
+			logger.Info("Multiple sandboxes found for claim GUID, using the first one", "guid", claim.UID)
+		}
+		sandbox := &sandboxList.Items[0]
+		logger.Info("Found existing sandbox by GUID label", "name", sandbox.Name)
+		
+		// Double check ownership
+		if !metav1.IsControlledBy(sandbox, claim) {
+			logger.Info("Sandbox found by label but not owned by claim, attempting to fix ownership", "sandbox", sandbox.Name)
+			patch := client.MergeFrom(sandbox.DeepCopy())
+			if err := controllerutil.SetControllerReference(claim, sandbox, r.Scheme); err != nil {
+				return nil, fmt.Errorf("failed to restore controller reference: %w", err)
+			}
+			if err := r.Patch(ctx, sandbox, patch); err != nil {
+				return nil, fmt.Errorf("failed to patch sandbox (restoring ownership): %w", err)
+			}
+		}
+		return sandbox, nil
+	}
+
+	// 3. Try to get sandbox with claim name (fallback for old or explicitly named sandboxes)
+	sandbox := &v1alpha1.Sandbox{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: claim.Namespace, Name: claim.Name}, sandbox)
+	if err == nil {
+		logger.Info("Found existing sandbox with claim name", "name", sandbox.Name)
 		if !metav1.IsControlledBy(sandbox, claim) {
 			err := fmt.Errorf("sandbox %q is not controlled by claim %q. Please use a different claim name or delete the sandbox manually", sandbox.Name, claim.Name)
 			logger.Error(err, "Sandbox controller mismatch")
@@ -517,7 +591,20 @@ func (r *SandboxClaimReconciler) getOrCreateSandbox(ctx context.Context, claim *
 		}
 		return sandbox, nil
 	}
+	if !k8errors.IsNotFound(err) {
+		return nil, err
+	}
 
+	// 4. Try to ADOPT from pool
+	adoptedSandbox, err := r.tryAdoptSandboxFromPool(ctx, claim, template)
+	if err != nil {
+		return nil, err
+	}
+	if adoptedSandbox != nil {
+		return adoptedSandbox, nil
+	}
+
+	// 5. Create NEW sandbox
 	return r.createSandbox(ctx, claim, template)
 }
 
@@ -542,10 +629,6 @@ func (r *SandboxClaimReconciler) getTemplate(ctx context.Context, claim *extensi
 func (r *SandboxClaimReconciler) SetupWithManager(mgr ctrl.Manager, concurrentWorkers int) error {
 	r.MaxConcurrentReconciles = concurrentWorkers
 
-	// Register the indexer to track pods that are not deleting and have correct ownership
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &corev1.Pod{}, podAvailabilityField, podAvailabilityIndexFunc); err != nil {
-		return err
-	}
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.SandboxClaim{}).
@@ -554,18 +637,6 @@ func (r *SandboxClaimReconciler) SetupWithManager(mgr ctrl.Manager, concurrentWo
 		Complete(r)
 }
 
-func podAvailabilityIndexFunc(rawObj client.Object) []string {
-	pod := rawObj.(*corev1.Pod)
-	if !pod.DeletionTimestamp.IsZero() {
-		return []string{"false"}
-	}
-
-	controllerRef := metav1.GetControllerOf(pod)
-	if controllerRef == nil || controllerRef.Kind != "SandboxWarmPool" {
-		return []string{"false"}
-	}
-	return []string{"true"}
-}
 
 // reconcileNetworkPolicy ensures a NetworkPolicy exists for the claimed Sandbox.
 func (r *SandboxClaimReconciler) reconcileNetworkPolicy(ctx context.Context, claim *extensionsv1alpha1.SandboxClaim, template *extensionsv1alpha1.SandboxTemplate) error {
@@ -631,12 +702,7 @@ func (r *SandboxClaimReconciler) reconcileNetworkPolicy(ctx context.Context, cla
 }
 
 // recordCreationLatencyMetric detects and records transitions to Ready state.
-func (r *SandboxClaimReconciler) recordCreationLatencyMetric(
-	claim *extensionsv1alpha1.SandboxClaim,
-	oldStatus *extensionsv1alpha1.SandboxClaimStatus,
-	sandbox *v1alpha1.Sandbox,
-) {
-
+func (r *SandboxClaimReconciler) recordCreationLatencyMetric(ctx context.Context, claim *extensionsv1alpha1.SandboxClaim, originalClaimStatus extensionsv1alpha1.SandboxClaimStatus, sandbox *v1alpha1.Sandbox) {
 	newStatus := &claim.Status
 	newReady := meta.FindStatusCondition(newStatus.Conditions, string(v1alpha1.SandboxConditionReady))
 	if newReady == nil || newReady.Status != metav1.ConditionTrue {
@@ -644,9 +710,20 @@ func (r *SandboxClaimReconciler) recordCreationLatencyMetric(
 	}
 
 	// Do not record creation metric if we have already seen the ready state.
-	oldReady := meta.FindStatusCondition(oldStatus.Conditions, string(v1alpha1.SandboxConditionReady))
+	oldReady := meta.FindStatusCondition(originalClaimStatus.Conditions, string(v1alpha1.SandboxConditionReady))
 	if oldReady != nil && oldReady.Status == metav1.ConditionTrue {
 		return
+	}
+
+	// Record Prometheus Metric for SandboxClaim creation-to-ready latency
+	key := claim.Namespace + "/" + claim.Name
+	if _, loaded := r.readyClaims.LoadOrStore(key, true); !loaded {
+		latencySeconds := time.Since(claim.CreationTimestamp.Time).Seconds()
+		asmetrics.SandboxClaimReadyLatency.WithLabelValues(claim.Namespace).Observe(latencySeconds)
+
+		// Record SandbClaimReadyMS in milliseconds to logs
+		log := log.FromContext(ctx)
+		log.Info("SandbClaimReadyMS", "namespace", claim.Namespace, "name", claim.Name, "latency_ms", time.Since(claim.CreationTimestamp.Time).Milliseconds())
 	}
 
 	launchType := asmetrics.LaunchTypeCold

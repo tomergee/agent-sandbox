@@ -19,10 +19,15 @@ spec:
       serviceAccountName: agent-sandbox-controller
       containers:
       - name: agent-sandbox-controller
-        image: ko://sigs.k8s.io/agent-sandbox/cmd/agent-sandbox-controller # placeholder value, replaced by deployment scripts
+        image: agent-sandbox-controller:latest
         args:
         - "--leader-elect=true"
         - "--extensions"
+        - "--sandbox-concurrent-workers=1000"
+        - "--sandbox-claim-concurrent-workers=1000"
+        - "--sandbox-warm-pool-concurrent-workers=1000"
+        - "--kube-api-qps=600"
+        - "--kube-api-burst=600"
         ports:
         - name: metrics
           containerPort: 8080

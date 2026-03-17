@@ -261,8 +261,27 @@ func (r *SandboxReconciler) updateStatus(ctx context.Context, oldStatus *sandbox
 		return nil
 	}
 
-	if err := r.Status().Update(ctx, sandbox); err != nil {
-		log.Error(err, "Failed to update sandbox status")
+	// Fetch the latest version of the sandbox to avoid "object has been modified" errors.
+	latestSandbox := &sandboxv1alpha1.Sandbox{}
+	if err := r.Get(ctx, types.NamespacedName{Name: sandbox.Name, Namespace: sandbox.Namespace}, latestSandbox); err != nil {
+		log.Error(err, "Failed to get latest sandbox before status update")
+		return err
+	}
+
+	// Create base object for diffing from latest sandbox, but with old status.
+	// This ensures we only patch status changes and avoid metadata conflicts.
+	oldSandbox := latestSandbox.DeepCopy()
+	oldSandbox.Status = *oldStatus
+
+	// Set desired status on latest sandbox
+	latestSandbox.Status = sandbox.Status
+
+	// Diff latest against old (base)
+	patch := client.MergeFrom(oldSandbox)
+
+	// Apply patch to the LATEST sandbox object.
+	if err := r.Status().Patch(ctx, latestSandbox, patch); err != nil {
+		log.Error(err, "Failed to patch sandbox status")
 		return err
 	}
 
@@ -423,20 +442,30 @@ func (r *SandboxReconciler) reconcilePod(ctx context.Context, sandbox *sandboxv1
 			})
 		}
 
+		changed := false
 		if pod.Labels == nil {
 			pod.Labels = make(map[string]string)
 		}
-		pod.Labels[sandboxLabel] = nameHash
+		if pod.Labels[sandboxLabel] != nameHash {
+			pod.Labels[sandboxLabel] = nameHash
+			changed = true
+		}
 
 		// Set controller reference if the pod is not controlled by anything.
 		if controllerRef := metav1.GetControllerOf(pod); controllerRef == nil {
 			if err := ctrl.SetControllerReference(sandbox, pod, r.Scheme); err != nil {
 				return nil, fmt.Errorf("SetControllerReference for Pod failed: %w", err)
 			}
+			changed = true
 		}
 
-		if err := r.Update(ctx, pod); err != nil {
-			return nil, fmt.Errorf("failed to update pod: %w", err)
+		if changed {
+			log.Info("Updating Pod labels/owner", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
+			if err := r.Update(ctx, pod); err != nil {
+				return nil, fmt.Errorf("failed to update pod: %w", err)
+			}
+		} else {
+			log.Info("Pod is already up to date, skipping update", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
 		}
 
 		// TODO - Do we enfore (change) spec if a pod exists ?

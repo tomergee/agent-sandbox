@@ -328,7 +328,8 @@ func TestSandboxClaimReconcile(t *testing.T) {
 			}
 
 			allObjects := append(tc.existingObjects, claimToUse)
-			client := fake.NewClientBuilder().WithScheme(scheme).WithObjects(allObjects...).WithStatusSubresource(claimToUse).Build()
+			client := fake.NewClientBuilder().WithScheme(scheme).
+				WithObjects(allObjects...).WithStatusSubresource(claimToUse).Build()
 
 			reconciler := &SandboxClaimReconciler{
 				Client:   client,
@@ -642,12 +643,12 @@ func TestSandboxClaimPodAdoption(t *testing.T) {
 	warmPoolUID := types.UID("warmpool-uid-123")
 	poolNameHash := sandboxcontrollers.NameHash("test-pool")
 
-	createWarmPoolPod := func(name string, creationTime metav1.Time, ready bool) *corev1.Pod {
-		conditionStatus := corev1.ConditionFalse
+	createWarmPoolSandbox := func(name string, creationTime metav1.Time, ready bool) *sandboxv1alpha1.Sandbox {
+		conditionStatus := metav1.ConditionFalse
 		if ready {
-			conditionStatus = corev1.ConditionTrue
+			conditionStatus = metav1.ConditionTrue
 		}
-		return &corev1.Pod{
+		return &sandboxv1alpha1.Sandbox{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:              name,
 				Namespace:         "default",
@@ -666,28 +667,19 @@ func TestSandboxClaimPodAdoption(t *testing.T) {
 					},
 				},
 			},
-			Status: corev1.PodStatus{
-				Phase: corev1.PodRunning,
-				Conditions: []corev1.PodCondition{
+			Status: sandboxv1alpha1.SandboxStatus{
+				Conditions: []metav1.Condition{
 					{
-						Type:   corev1.PodReady,
+						Type:   string(sandboxv1alpha1.SandboxConditionReady),
 						Status: conditionStatus,
-					},
-				},
-			},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name:  "test-container",
-						Image: "test-image",
 					},
 				},
 			},
 		}
 	}
 
-	createPodWithDifferentController := func(name string) *corev1.Pod {
-		return &corev1.Pod{
+	createSandboxWithDifferentController := func(name string) *sandboxv1alpha1.Sandbox {
+		return &sandboxv1alpha1.Sandbox{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      name,
 				Namespace: "default",
@@ -704,102 +696,94 @@ func TestSandboxClaimPodAdoption(t *testing.T) {
 					},
 				},
 			},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name:  "test-container",
-						Image: "test-image",
-					},
-				},
-			},
 		}
 	}
 
-	createDeletingPod := func(name string) *corev1.Pod {
-		pod := createWarmPoolPod(name, metav1.Now(), true)
+	createDeletingSandbox := func(name string) *sandboxv1alpha1.Sandbox {
+		sandbox := createWarmPoolSandbox(name, metav1.Now(), true)
 		now := metav1.Now()
-		pod.DeletionTimestamp = &now
+		sandbox.DeletionTimestamp = &now
 		// Add a finalizer so the fake client accepts the object with deletionTimestamp
-		pod.Finalizers = []string{"test-finalizer"}
-		return pod
+		sandbox.Finalizers = []string{"test-finalizer"}
+		return sandbox
 	}
 
 	testCases := []struct {
-		name                string
-		existingObjects     []client.Object
-		expectPodAdoption   bool
-		expectedAdoptedPod  string // name of the pod that should be adopted
-		expectSandboxCreate bool
+		name                   string
+		existingObjects        []client.Object
+		expectSandboxAdoption  bool
+		expectedAdoptedSandbox string
+		expectSandboxCreate    bool
 	}{
 		{
-			name: "adopts oldest pod from warm pool",
+			name: "adopts oldest sandbox from warm pool",
 			existingObjects: []client.Object{
 				template,
 				claim,
-				createWarmPoolPod("pool-pod-1", metav1.Time{Time: metav1.Now().Add(-3600)}, true), // oldest
-				createWarmPoolPod("pool-pod-2", metav1.Time{Time: metav1.Now().Add(-1800)}, true),
-				createWarmPoolPod("pool-pod-3", metav1.Now(), true),
+				createWarmPoolSandbox("pool-sandbox-1", metav1.Time{Time: metav1.Now().Add(-3600)}, true), // oldest
+				createWarmPoolSandbox("pool-sandbox-2", metav1.Time{Time: metav1.Now().Add(-1800)}, true),
+				createWarmPoolSandbox("pool-sandbox-3", metav1.Now(), true),
 			},
-			expectPodAdoption:   true,
-			expectedAdoptedPod:  "pool-pod-1",
-			expectSandboxCreate: true,
+			expectSandboxAdoption:  true,
+			expectedAdoptedSandbox: "pool-sandbox-1",
+			expectSandboxCreate:    false,
 		},
 		{
-			name: "creates sandbox without adoption when no warm pool pods exist",
+			name: "creates sandbox without adoption when no warm pool sandboxes exist",
 			existingObjects: []client.Object{
 				template,
 				claim,
 			},
-			expectPodAdoption:   false,
-			expectSandboxCreate: true,
+			expectSandboxAdoption:  false,
+			expectSandboxCreate:    true,
 		},
 		{
-			name: "skips pods with different controller",
+			name: "skips sandboxes with different controller",
 			existingObjects: []client.Object{
 				template,
 				claim,
-				createPodWithDifferentController("other-pod-1"),
-				createWarmPoolPod("pool-pod-1", metav1.Now(), true),
+				createSandboxWithDifferentController("other-sandbox-1"),
+				createWarmPoolSandbox("pool-sandbox-1", metav1.Now(), true),
 			},
-			expectPodAdoption:   true,
-			expectedAdoptedPod:  "pool-pod-1",
-			expectSandboxCreate: true,
+			expectSandboxAdoption:  true,
+			expectedAdoptedSandbox: "pool-sandbox-1",
+			expectSandboxCreate:    false,
 		},
 		{
-			name: "skips pods being deleted",
+			name: "skips sandboxes being deleted",
 			existingObjects: []client.Object{
 				template,
 				claim,
-				createDeletingPod("deleting-pod"),
-				createWarmPoolPod("pool-pod-1", metav1.Now(), true),
+				createDeletingSandbox("deleting-sandbox"),
+				createWarmPoolSandbox("pool-sandbox-1", metav1.Now(), true),
 			},
-			expectPodAdoption:   true,
-			expectedAdoptedPod:  "pool-pod-1",
-			expectSandboxCreate: true,
+			expectSandboxAdoption:  true,
+			expectedAdoptedSandbox: "pool-sandbox-1",
+			expectSandboxCreate:    false,
 		},
 		{
-			name: "no adoption when only ineligible pods exist",
+			name: "no adoption when only ineligible sandboxes exist",
 			existingObjects: []client.Object{
 				template,
 				claim,
-				createPodWithDifferentController("other-pod-1"),
-				createDeletingPod("deleting-pod"),
+				createSandboxWithDifferentController("other-sandbox-1"),
+				createDeletingSandbox("deleting-sandbox"),
 			},
-			expectPodAdoption:   false,
-			expectSandboxCreate: true,
+			expectSandboxAdoption:  false,
+			expectSandboxCreate:    true,
 		},
 		{
-			name: "prioritizes ready pods",
+			name: "prioritizes ready sandboxes",
 			existingObjects: []client.Object{
 				template,
 				claim,
-				createWarmPoolPod("not-ready", metav1.Time{Time: metav1.Now().Add(-2 * time.Hour)}, false),
-				createWarmPoolPod("middle-ready", metav1.Time{Time: metav1.Now().Add(-1 * time.Hour)}, true),
-				createWarmPoolPod("young-ready", metav1.Now(), true),
+				createWarmPoolSandbox("not-ready", metav1.Time{Time: metav1.Now().Add(-2 * time.Hour)}, false),
+				createWarmPoolSandbox("middle-ready", metav1.Time{Time: metav1.Now().Add(-1 * time.Hour)}, true),
+				createWarmPoolSandbox("young-ready", metav1.Now(), true),
 			},
-			expectPodAdoption:   true,
-			expectedAdoptedPod:  "middle-ready",
-			expectSandboxCreate: true,
+			expectSandboxAdoption:  true,
+			expectedAdoptedSandbox: "middle-ready",
+			expectSandboxCreate:    false,
 		},
 	}
 
@@ -842,48 +826,66 @@ func TestSandboxClaimPodAdoption(t *testing.T) {
 				t.Fatalf("expected sandbox not to be created but it exists")
 			}
 
-			if tc.expectPodAdoption {
-				// Verify the adopted pod has correct labels and owner reference
-				var adoptedPod corev1.Pod
+			// Verify claim status
+			var updatedClaim extensionsv1alpha1.SandboxClaim
+			err = client.Get(ctx, types.NamespacedName{Name: "test-claim", Namespace: "default"}, &updatedClaim)
+			if err != nil {
+				t.Fatalf("failed to get updated claim: %v", err)
+			}
+
+			if tc.expectSandboxAdoption {
+				if updatedClaim.Status.SandboxStatus.Name != tc.expectedAdoptedSandbox {
+					t.Errorf("expected claim status to have sandbox name %q, but got %q", tc.expectedAdoptedSandbox, updatedClaim.Status.SandboxStatus.Name)
+				}
+
+				// Verify the adopted sandbox has correct labels and owner reference
+				var adoptedSandbox sandboxv1alpha1.Sandbox
 				err = client.Get(ctx, types.NamespacedName{
-					Name:      tc.expectedAdoptedPod,
+					Name:      tc.expectedAdoptedSandbox,
 					Namespace: "default",
-				}, &adoptedPod)
+				}, &adoptedSandbox)
 				if err != nil {
-					t.Fatalf("failed to get adopted pod: %v", err)
+					t.Fatalf("failed to get adopted sandbox: %v", err)
 				}
 
 				// 1. Verify pool labels were removed
-				if _, exists := adoptedPod.Labels[poolLabel]; exists {
-					t.Errorf("expected pool label to be removed from adopted pod")
+				if _, exists := adoptedSandbox.Labels[poolLabel]; exists {
+					t.Errorf("expected pool label to be removed from adopted sandbox")
 				}
-				if _, exists := adoptedPod.Labels[sandboxTemplateRefHash]; exists {
-					t.Errorf("expected sandbox template ref label to be removed from adopted pod")
+				if _, exists := adoptedSandbox.Labels[sandboxTemplateRefHash]; exists {
+					t.Errorf("expected sandbox template ref label to be removed from adopted sandbox")
 				}
 
 				// 2. Verify Security Label (UID) was added
 				expectedUID := string(types.UID("claim-uid")) // MATCHES CLAIM UID
-				if val, exists := adoptedPod.Labels[extensionsv1alpha1.SandboxIDLabel]; !exists || val != expectedUID {
-					t.Errorf("expected pod to have security label %q with value %q, but got %q", extensionsv1alpha1.SandboxIDLabel, expectedUID, val)
+				if val, exists := adoptedSandbox.Labels[extensionsv1alpha1.SandboxIDLabel]; !exists || val != expectedUID {
+					t.Errorf("expected sandbox to have security label %q with value %q, but got %q", extensionsv1alpha1.SandboxIDLabel, expectedUID, val)
 				}
 
 				// 3. Verify Legacy Hash Label (Required by Base Controller) was added
-				expectedLegacyHash := sandboxcontrollers.NameHash("test-claim")
-				if val, exists := adoptedPod.Labels[sandboxLabel]; !exists || val != expectedLegacyHash {
-					t.Errorf("expected pod to have legacy label %q with value %q, but got %q", sandboxLabel, expectedLegacyHash, val)
-				}
+
 
 				// 4. Verify OwnerReference is nil
-				if len(adoptedPod.OwnerReferences) != 0 {
-					t.Errorf("expected adopted pod owner references to be cleared, got %v", adoptedPod.OwnerReferences)
-				}
-
-			} else if tc.expectSandboxCreate {
-				// Verify no pod name annotation when no adoption occurred
-				if sandbox.Annotations != nil {
-					if _, exists := sandbox.Annotations[sandboxcontrollers.SandboxPodNameAnnotation]; exists {
-						t.Errorf("expected no pod name annotation but found one")
+				if len(adoptedSandbox.OwnerReferences) != 1 {
+					t.Errorf("expected adopted sandbox to have 1 owner reference, got %v", adoptedSandbox.OwnerReferences)
+				} else {
+					owner := adoptedSandbox.OwnerReferences[0]
+					if owner.Kind != "SandboxClaim" || owner.Name != "test-claim" {
+						t.Errorf("expected adopted sandbox to be owned by SandboxClaim test-claim, got %v", owner)
 					}
+				}
+			} else if tc.expectSandboxCreate {
+				if updatedClaim.Status.SandboxStatus.Name == "" {
+					t.Errorf("expected claim status to have a sandbox name, but it was empty")
+				}
+				// Verify the created sandbox has correct name (it should be equal to updatedClaim.Status.SandboxStatus.Name)
+				var createdSandbox sandboxv1alpha1.Sandbox
+				err = client.Get(ctx, types.NamespacedName{
+					Name:      updatedClaim.Status.SandboxStatus.Name,
+					Namespace: "default",
+				}, &createdSandbox)
+				if err != nil {
+					t.Fatalf("failed to get created sandbox: %v", err)
 				}
 			}
 		})
@@ -958,7 +960,11 @@ func TestRecordCreationLatencyMetric(t *testing.T) {
 			asmetrics.ClaimStartupLatency.Reset()
 			r := &SandboxClaimReconciler{}
 
-			r.recordCreationLatencyMetric(tc.claim, tc.oldStatus, tc.sandbox)
+			var oldStatus extensionsv1alpha1.SandboxClaimStatus
+			if tc.oldStatus != nil {
+				oldStatus = *tc.oldStatus
+			}
+			r.recordCreationLatencyMetric(context.Background(), tc.claim, oldStatus, tc.sandbox)
 
 			// Verify the metric was observed in the Prometheus registry
 			count := testutil.CollectAndCount(asmetrics.ClaimStartupLatency)

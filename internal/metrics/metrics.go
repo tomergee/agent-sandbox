@@ -42,11 +42,25 @@ var (
 		},
 		[]string{"launch_type", "sandbox_template"},
 	)
+
+	// SandboxClaimReadyLatency measures the time from SandboxClaim creation to SandboxClaim Ready state.
+	// Labels:
+	// - namespace: the namespace of the claim
+	SandboxClaimReadyLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "sandbox_claim_ready_latency_seconds",
+			Help:    "Latency from claim creation to readiness in seconds",
+			Buckets: prometheus.DefBuckets, // Uses default buckets which are suitable for typical sub-second/seconds latencies.
+		},
+		[]string{"namespace"},
+	)
 )
+
 
 // Init registers custom metrics with the global controller-runtime registry.
 func init() {
 	metrics.Registry.MustRegister(ClaimStartupLatency)
+	metrics.Registry.MustRegister(SandboxClaimReadyLatency)
 }
 
 // RecordClaimStartupLatency records the duration since the provided start time.

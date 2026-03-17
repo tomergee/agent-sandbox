@@ -1,0 +1,126 @@
+{{$replicas := DefaultParam .CL2_REPLICAS 100}}
+{{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
+{{$qps := DefaultParam .CL2_QPS 300}}
+{{$namespacePrefix := DefaultParam .CL2_NAMESPACE_PREFIX "agent-sandbox-test"}}
+name: agent-sandbox-warmpool-load-test
+namespace:
+  number: {{$namespaces}}
+  prefix: {{$namespacePrefix}}
+  enableExistingNamespaces: true
+  deleteAutomanagedNamespaces: false
+Params:
+  CL2_WARM_POOL_REPLICAS: 600
+tuningSets:
+- name: BurstCreate
+  qpsLoad:
+    qps: {{$qps}}
+steps:
+- name: Start Startup Latency Measurement
+  measurements:
+  - Identifier: SandboxStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: start
+      labelSelector: "extensions.agents.x-k8s.io/sandbox-id"
+
+- name: Setup Sandbox Template
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 1
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: template
+      objectTemplatePath: "cluster-loader-sandbox-template.yaml"
+
+- name: Setup Sandbox Warm Pool
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 1
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: warmpool
+      objectTemplatePath: "cluster-loader-sandbox-warmpool.yaml"
+
+- name: Wait for Warm Pool Pods to be Ready
+  measurements:
+  - Identifier: WaitForWarmPoolPods
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      labelSelector: "agents.x-k8s.io/pool"
+      desiredPodCount: {{MultiplyInt (DefaultParam .CL2_WARM_POOL_REPLICAS 20) $namespaces}}
+
+- name: Sleep to ensure warm pods are ready
+  measurements:
+  - Identifier: SleepForPods
+    Method: Sleep
+    Params:
+      duration: 30s
+
+- name: Create Sandbox Claims
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: {{$replicas}}
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Wait for Sandbox Claims to be Ready
+  measurements:
+  - Identifier: WaitForSandboxClaims
+    Method: WaitForGenericK8sObjects
+    Params:
+      action: start
+      objectGroup: extensions.agents.x-k8s.io
+      objectVersion: v1alpha1
+      objectResource: sandboxclaims
+      namespaceRange: {min: 1, max: {{$namespaces}}}
+      successfulConditions: ["Ready=True"]
+      failedConditions: []
+      minDesiredObjectCount: {{MultiplyInt $replicas $namespaces}}
+      maxFailedObjectCount: 0
+      timeout: 10m
+      refreshInterval: 20ms
+
+- name: Pause for Data Collection
+  measurements:
+  - Identifier: WaitAfterReady
+    Method: Sleep
+    Params:
+      duration: 15s
+
+- name: Gather Results
+  measurements:
+  - Identifier: SandboxStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: gather
+      labelSelector: "extensions.agents.x-k8s.io/sandbox-id"
+
+- name: Delete Sandbox Claims
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 0
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: agent-claim
+      objectTemplatePath: "cluster-loader-sandbox-claim.yaml"
+
+- name: Delete Sandbox Warm Pool
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 0
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: warmpool
+      objectTemplatePath: "cluster-loader-sandbox-warmpool.yaml"
+
+- name: Delete Sandbox Templates
+  phases:
+  - namespaceRange: {min: 1, max: {{$namespaces}}}
+    replicasPerNamespace: 0
+    tuningSet: BurstCreate
+    objectBundle:
+    - basename: template
+      objectTemplatePath: "cluster-loader-sandbox-template.yaml"

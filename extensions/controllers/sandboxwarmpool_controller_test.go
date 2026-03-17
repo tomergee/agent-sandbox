@@ -41,27 +41,31 @@ func newTestScheme() *runtime.Scheme {
 	return scheme
 }
 
-func createPod(name, namespace, poolNameHash string) *corev1.Pod {
-	return &corev1.Pod{
+func createSandbox(name, namespace, poolNameHash string) *sandboxv1alpha1.Sandbox {
+	return &sandboxv1alpha1.Sandbox{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
 			Labels:    map[string]string{poolLabel: poolNameHash},
 		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:  "test-container",
-					Image: "test-image",
+		Spec: sandboxv1alpha1.SandboxSpec{
+			PodTemplate: sandboxv1alpha1.PodTemplate{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test-container",
+							Image: "test-image",
+						},
+					},
 				},
 			},
 		},
 	}
 }
 
-func createPoolPod(poolName, namespace, poolNameHash, suffix string) *corev1.Pod {
+func createPoolSandbox(poolName, namespace, poolNameHash, suffix string) *sandboxv1alpha1.Sandbox {
 	name := poolName + suffix
-	return createPod(name, namespace, poolNameHash)
+	return createSandbox(name, namespace, poolNameHash)
 }
 
 func createTemplate(name, namespace string) *extensionsv1alpha1.SandboxTemplate {
@@ -116,26 +120,26 @@ func TestReconcilePool(t *testing.T) {
 		expectedReplicas int32
 	}{
 		{
-			name:             "creates pods when pool is empty",
+			name:             "creates sandboxes when pool is empty",
 			initialObjs:      []runtime.Object{template},
 			expectedReplicas: replicas,
 		},
 		{
-			name: "creates additional pods when under-provisioned",
+			name: "creates additional sandboxes when under-provisioned",
 			initialObjs: []runtime.Object{
 				template,
-				createPoolPod(poolName, poolNamespace, poolNameHash, "abc123"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "abc123"),
 			},
 			expectedReplicas: replicas,
 		},
 		{
-			name: "deletes excess pods when over-provisioned",
+			name: "deletes excess sandboxes when over-provisioned",
 			initialObjs: []runtime.Object{
 				template,
-				createPoolPod(poolName, poolNamespace, poolNameHash, "abc123"),
-				createPoolPod(poolName, poolNamespace, poolNameHash, "def456"),
-				createPoolPod(poolName, poolNamespace, poolNameHash, "ghi789"),
-				createPoolPod(poolName, poolNamespace, poolNameHash, "jkl012"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "abc123"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "def456"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "ghi789"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "jkl012"),
 			},
 			expectedReplicas: replicas,
 		},
@@ -143,9 +147,9 @@ func TestReconcilePool(t *testing.T) {
 			name: "maintains correct replica count",
 			initialObjs: []runtime.Object{
 				template,
-				createPoolPod(poolName, poolNamespace, poolNameHash, "abc123"),
-				createPoolPod(poolName, poolNamespace, poolNameHash, "def456"),
-				createPoolPod(poolName, poolNamespace, poolNameHash, "ghi789"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "abc123"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "def456"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "ghi789"),
 			},
 			expectedReplicas: replicas,
 		},
@@ -170,14 +174,14 @@ func TestReconcilePool(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify final state
-			list := &corev1.PodList{}
+			list := &sandboxv1alpha1.SandboxList{}
 			err = r.List(ctx, list, &client.ListOptions{Namespace: poolNamespace})
 			require.NoError(t, err)
 
-			// Count pods with correct pool label
+			// Count sandboxes with correct pool label
 			count := int32(0)
-			for _, pod := range list.Items {
-				if pod.Labels[poolLabel] == poolNameHash {
+			for _, sb := range list.Items {
+				if sb.Labels[poolLabel] == poolNameHash {
 					count++
 				}
 			}
@@ -214,10 +218,10 @@ func TestReconcilePoolControllerRef(t *testing.T) {
 	// Compute the pool name hash
 	poolNameHash := sandboxcontrollers.NameHash(poolName)
 
-	createPodWithOwner := func(name string, ownerUID string) *corev1.Pod {
-		pod := createPoolPod(poolName, poolNamespace, poolNameHash, name)
+	createSandboxWithOwner := func(name string, ownerUID string) *sandboxv1alpha1.Sandbox {
+		sb := createPoolSandbox(poolName, poolNamespace, poolNameHash, name)
 		if ownerUID != "" {
-			pod.OwnerReferences = []metav1.OwnerReference{
+			sb.OwnerReferences = []metav1.OwnerReference{
 				{
 					APIVersion: "extensions.agents.x-k8s.io/v1alpha1",
 					Kind:       "SandboxWarmPool",
@@ -227,12 +231,12 @@ func TestReconcilePoolControllerRef(t *testing.T) {
 				},
 			}
 		}
-		return pod
+		return sb
 	}
 
-	createPodWithDifferentController := func(name string) *corev1.Pod {
-		pod := createPoolPod(poolName, poolNamespace, poolNameHash, name)
-		pod.OwnerReferences = []metav1.OwnerReference{
+	createSandboxWithDifferentController := func(name string) *sandboxv1alpha1.Sandbox {
+		sb := createPoolSandbox(poolName, poolNamespace, poolNameHash, name)
+		sb.OwnerReferences = []metav1.OwnerReference{
 			{
 				APIVersion: "apps/v1",
 				Kind:       "ReplicaSet",
@@ -241,75 +245,75 @@ func TestReconcilePoolControllerRef(t *testing.T) {
 				Controller: boolPtr(true),
 			},
 		}
-		return pod
+		return sb
 	}
 
 	testCases := []struct {
 		name             string
 		initialObjs      []runtime.Object
 		expectedReplicas int32
-		expectedAdopted  int // number of pods that should be adopted
+		expectedAdopted  int // number of sandboxes that should be adopted
 	}{
 		{
-			name: "adopts orphaned pods with no controller reference",
+			name: "adopts orphaned sandboxes with no controller reference",
 			initialObjs: []runtime.Object{
 				template,
-				createPodWithOwner("abc123", ""), // No owner reference
-				createPodWithOwner("def456", ""), // No owner reference
+				createSandboxWithOwner("abc123", ""), // No owner reference
+				createSandboxWithOwner("def456", ""), // No owner reference
 			},
 			expectedReplicas: replicas,
 			expectedAdopted:  2,
 		},
 		{
-			name: "includes pods with correct controller reference",
+			name: "includes sandboxes with correct controller reference",
 			initialObjs: []runtime.Object{
 				template,
-				createPodWithOwner("abc123", "warmpool-uid-123"),
-				createPodWithOwner("def456", "warmpool-uid-123"),
+				createSandboxWithOwner("abc123", "warmpool-uid-123"),
+				createSandboxWithOwner("def456", "warmpool-uid-123"),
 			},
 			expectedReplicas: replicas,
 			expectedAdopted:  0,
 		},
 		{
-			name: "ignores pods with different controller reference",
+			name: "ignores sandboxes with different controller reference",
 			initialObjs: []runtime.Object{
 				template,
-				createPodWithDifferentController("abc123"),
-				createPodWithDifferentController("def456"),
+				createSandboxWithDifferentController("abc123"),
+				createSandboxWithDifferentController("def456"),
 			},
-			expectedReplicas: replicas, // Should create 2 new pods
+			expectedReplicas: replicas, // Should create 2 new sandboxes
 			expectedAdopted:  0,
 		},
 		{
-			name: "handles mix of owned, orphaned, and foreign pods",
+			name: "handles mix of owned, orphaned, and foreign sandboxes",
 			initialObjs: []runtime.Object{
 				template,
-				createPodWithOwner("abc123", "warmpool-uid-123"), // Owned
-				createPodWithOwner("def456", ""),                 // Orphaned - should adopt
-				createPodWithDifferentController("ghi789"),       // Foreign - should ignore
+				createSandboxWithOwner("abc123", "warmpool-uid-123"), // Owned
+				createSandboxWithOwner("def456", ""),                 // Orphaned - should adopt
+				createSandboxWithDifferentController("ghi789"),       // Foreign - should ignore
 			},
 			expectedReplicas: replicas,
 			expectedAdopted:  1,
 		},
 		{
-			name: "adopts orphan and creates additional pod when under-provisioned",
+			name: "adopts orphan and creates additional sandbox when under-provisioned",
 			initialObjs: []runtime.Object{
 				template,
-				createPodWithOwner("abc123", ""), // Orphaned - should adopt
+				createSandboxWithOwner("abc123", ""), // Orphaned - should adopt
 			},
 			expectedReplicas: replicas, // 1 adopted + 1 created
 			expectedAdopted:  1,
 		},
 		{
-			name: "deletes excess owned pods but ignores foreign pods",
+			name: "deletes excess owned sandboxes but ignores foreign sandboxes",
 			initialObjs: []runtime.Object{
 				template,
-				createPodWithOwner("abc123", "warmpool-uid-123"),
-				createPodWithOwner("def456", "warmpool-uid-123"),
-				createPodWithOwner("ghi789", "warmpool-uid-123"),
-				createPodWithDifferentController("jkl012"), // Should be ignored
+				createSandboxWithOwner("abc123", "warmpool-uid-123"),
+				createSandboxWithOwner("def456", "warmpool-uid-123"),
+				createSandboxWithOwner("ghi789", "warmpool-uid-123"),
+				createSandboxWithDifferentController("jkl012"), // Should be ignored
 			},
-			expectedReplicas: replicas, // Should delete 1 owned pod
+			expectedReplicas: replicas, // Should delete 1 owned sandbox
 			expectedAdopted:  0,
 		},
 	}
@@ -334,22 +338,22 @@ func TestReconcilePoolControllerRef(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify final state
-			list := &corev1.PodList{}
+			list := &sandboxv1alpha1.SandboxList{}
 			err = r.List(ctx, list, &client.ListOptions{Namespace: poolNamespace})
 			require.NoError(t, err)
 
-			// Count pods with correct pool label and owned by warmpool
+			// Count sandboxes with correct pool label and owned by warmpool
 			ownedCount := int32(0)
 			adoptedCount := 0
-			for _, pod := range list.Items {
-				if pod.Labels[poolLabel] == poolNameHash {
-					controllerRef := metav1.GetControllerOf(&pod)
+			for _, sb := range list.Items {
+				if sb.Labels[poolLabel] == poolNameHash {
+					controllerRef := metav1.GetControllerOf(&sb)
 					if controllerRef != nil && controllerRef.UID == warmPool.UID {
 						ownedCount++
 						// Check if this was originally an orphan (adopted)
 						for _, initialObj := range tc.initialObjs {
-							if initialPod, ok := initialObj.(*corev1.Pod); ok {
-								if initialPod.Name == pod.Name && len(initialPod.OwnerReferences) == 0 {
+							if initialSb, ok := initialObj.(*sandboxv1alpha1.Sandbox); ok {
+								if initialSb.Name == sb.Name && len(initialSb.OwnerReferences) == 0 {
 									adoptedCount++
 									break
 								}
@@ -359,7 +363,7 @@ func TestReconcilePoolControllerRef(t *testing.T) {
 				}
 			}
 
-			require.Equal(t, tc.expectedReplicas, ownedCount, "owned pod count mismatch")
+			require.Equal(t, tc.expectedReplicas, ownedCount, "owned sandbox count mismatch")
 			require.Equal(t, tc.expectedReplicas, warmPool.Status.Replicas, "status replicas mismatch")
 		})
 	}
@@ -443,30 +447,30 @@ func TestPoolLabelValueInIntegration(t *testing.T) {
 		require.NoError(t, err)
 
 		// List all pods
-		list := &corev1.PodList{}
+		list := &sandboxv1alpha1.SandboxList{}
 		err = r.List(ctx, list, &client.ListOptions{Namespace: poolNamespace})
 		require.NoError(t, err)
 		require.Len(t, list.Items, int(replicas))
 
-		// Verify each pod has the correct labels
-		for _, pod := range list.Items {
-			require.Equal(t, expectedPoolNameHash, pod.Labels[poolLabel],
-				"pod %s should have correct pool label (pool name hash)", pod.Name)
-			require.Equal(t, sandboxcontrollers.NameHash(templateName), pod.Labels[sandboxTemplateRefHash],
-				"pod %s should have correct sandbox template ref label", pod.Name)
+		// Verify each sandbox has the correct labels
+		for _, sb := range list.Items {
+			require.Equal(t, expectedPoolNameHash, sb.Labels[poolLabel],
+				"sandbox %s should have correct pool label (pool name hash)", sb.Name)
+			require.Equal(t, sandboxcontrollers.NameHash(templateName), sb.Labels[sandboxTemplateRefHash],
+				"sandbox %s should have correct sandbox template ref label", sb.Name)
 
-			// Verify labels from pod template
-			require.Equal(t, "2.0", pod.Labels["version"])
-			require.Equal(t, "from-podtemplate", pod.Labels["pod-label"])
+			// Verify labels from pod template are in Spec.PodTemplate
+			require.Equal(t, "2.0", sb.Spec.PodTemplate.ObjectMeta.Labels["version"])
+			require.Equal(t, "from-podtemplate", sb.Spec.PodTemplate.ObjectMeta.Labels["pod-label"])
 
-			// Verify sandbox template labels are not propagated
-			require.NotContains(t, pod.Labels, "app")
+			// Verify sandbox template labels are not propagated to Sandbox ObjectMeta
+			require.NotContains(t, sb.Labels, "app")
 
-			// Verify annotations from pod template
-			require.Equal(t, "from-podtemplate", pod.Annotations["pod-annotation"])
+			// Verify annotations from pod template are in Spec.PodTemplate
+			require.Equal(t, "from-podtemplate", sb.Spec.PodTemplate.ObjectMeta.Annotations["pod-annotation"])
 
-			// Verify sandbox template metadata annotations are not propagated
-			require.NotContains(t, pod.Annotations, "description")
+			// Verify sandbox template metadata annotations are not propagated to Sandbox ObjectMeta
+			require.NotContains(t, sb.Annotations, "description")
 		}
 	})
 }
@@ -496,59 +500,59 @@ func TestReconcilePoolReadyReplicas(t *testing.T) {
 	// Compute the pool name hash
 	poolNameHash := sandboxcontrollers.NameHash(poolName)
 
-	createPodWithReadyCondition := func(suffix string, ready corev1.ConditionStatus) *corev1.Pod {
-		pod := createPoolPod(poolName, poolNamespace, poolNameHash, suffix)
-		pod.Status.Conditions = []corev1.PodCondition{
+	createSandboxWithReadyCondition := func(suffix string, ready metav1.ConditionStatus) *sandboxv1alpha1.Sandbox {
+		sb := createPoolSandbox(poolName, poolNamespace, poolNameHash, suffix)
+		sb.Status.Conditions = []metav1.Condition{
 			{
-				Type:   corev1.PodReady,
+				Type:   string(sandboxv1alpha1.SandboxConditionReady),
 				Status: ready,
 			},
 		}
-		return pod
+		return sb
 	}
 
 	testCases := []struct {
 		name                  string
-		initialPods           []runtime.Object
+		initialSandboxes      []runtime.Object
 		expectedReadyReplicas int32
 	}{
 		{
-			name: "no pods ready",
-			initialPods: []runtime.Object{
+			name: "no sandboxes ready",
+			initialSandboxes: []runtime.Object{
 				template,
-				createPodWithReadyCondition("abc123", corev1.ConditionFalse),
-				createPodWithReadyCondition("def456", corev1.ConditionUnknown),
-				createPodWithReadyCondition("ghi789", corev1.ConditionFalse),
+				createSandboxWithReadyCondition("abc123", metav1.ConditionFalse),
+				createSandboxWithReadyCondition("def456", metav1.ConditionUnknown),
+				createSandboxWithReadyCondition("ghi789", metav1.ConditionFalse),
 			},
 			expectedReadyReplicas: 0,
 		},
 		{
-			name: "some pods ready",
-			initialPods: []runtime.Object{
+			name: "some sandboxes ready",
+			initialSandboxes: []runtime.Object{
 				template,
-				createPodWithReadyCondition("abc123", corev1.ConditionTrue),
-				createPodWithReadyCondition("def456", corev1.ConditionFalse),
-				createPodWithReadyCondition("ghi789", corev1.ConditionTrue),
+				createSandboxWithReadyCondition("abc123", metav1.ConditionTrue),
+				createSandboxWithReadyCondition("def456", metav1.ConditionFalse),
+				createSandboxWithReadyCondition("ghi789", metav1.ConditionTrue),
 			},
 			expectedReadyReplicas: 2,
 		},
 		{
-			name: "all pods ready",
-			initialPods: []runtime.Object{
+			name: "all sandboxes ready",
+			initialSandboxes: []runtime.Object{
 				template,
-				createPodWithReadyCondition("abc123", corev1.ConditionTrue),
-				createPodWithReadyCondition("def456", corev1.ConditionTrue),
-				createPodWithReadyCondition("ghi789", corev1.ConditionTrue),
+				createSandboxWithReadyCondition("abc123", metav1.ConditionTrue),
+				createSandboxWithReadyCondition("def456", metav1.ConditionTrue),
+				createSandboxWithReadyCondition("ghi789", metav1.ConditionTrue),
 			},
 			expectedReadyReplicas: 3,
 		},
 		{
-			name: "pods with no ready condition",
-			initialPods: []runtime.Object{
+			name: "sandboxes with no ready condition",
+			initialSandboxes: []runtime.Object{
 				template,
-				createPoolPod(poolName, poolNamespace, poolNameHash, "abc123"),
-				createPoolPod(poolName, poolNamespace, poolNameHash, "def456"),
-				createPodWithReadyCondition("ghi789", corev1.ConditionTrue),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "abc123"),
+				createPoolSandbox(poolName, poolNamespace, poolNameHash, "def456"),
+				createSandboxWithReadyCondition("ghi789", metav1.ConditionTrue),
 			},
 			expectedReadyReplicas: 1,
 		},
@@ -559,7 +563,7 @@ func TestReconcilePoolReadyReplicas(t *testing.T) {
 			r := SandboxWarmPoolReconciler{
 				Client: fake.NewClientBuilder().
 					WithScheme(newTestScheme()).
-					WithRuntimeObjects(tc.initialPods...).
+					WithRuntimeObjects(tc.initialSandboxes...).
 					Build(),
 			}
 
