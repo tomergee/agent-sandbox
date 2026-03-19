@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"reflect"
 	"sort"
 	"sync"
@@ -365,9 +366,10 @@ func (r *SandboxClaimReconciler) tryAdoptSandboxFromPool(ctx context.Context, cl
 		return nil, err
 	}
 
-	// Sort Sandboxes by creation timestamp (oldest first) to ensure FIFO
-	sort.Slice(sandboxList.Items, func(i, j int) bool {
-		return sandboxList.Items[i].CreationTimestamp.Time.Before(sandboxList.Items[j].CreationTimestamp.Time)
+	// Shuffle Sandboxes for random adoption to avoid contention / Thundering Herd conflicts
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng.Shuffle(len(sandboxList.Items), func(i, j int) {
+		sandboxList.Items[i], sandboxList.Items[j] = sandboxList.Items[j], sandboxList.Items[i]
 	})
 
 	// Determine the search range for collision avoidance.
@@ -438,6 +440,11 @@ func (r *SandboxClaimReconciler) tryAdoptSandboxFromPool(ctx context.Context, cl
 			log.Error(err, "Failed to set controller reference for adopted sandbox", "sandbox", sandbox.Name)
 			continue
 		}
+
+		if sandbox.Annotations == nil {
+			sandbox.Annotations = make(map[string]string)
+		}
+		sandbox.Annotations["agents.x-k8s.io/adopted-from-pool"] = "true"
 
 		// Set labels
 		if sandbox.Labels == nil {
@@ -633,6 +640,7 @@ func (r *SandboxClaimReconciler) SetupWithManager(mgr ctrl.Manager, concurrentWo
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&extensionsv1alpha1.SandboxClaim{}).
 		Owns(&v1alpha1.Sandbox{}).
+		Owns(&networkingv1.NetworkPolicy{}).
 		WithOptions(controller.Options{MaxConcurrentReconciles: concurrentWorkers}).
 		Complete(r)
 }
@@ -644,19 +652,17 @@ func (r *SandboxClaimReconciler) reconcileNetworkPolicy(ctx context.Context, cla
 
 	// 1. Cleanup Check: If missing, delete existing policy
 	if template == nil || template.Spec.NetworkPolicy == nil {
-		existingNP := &networkingv1.NetworkPolicy{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      claim.Name + "-network-policy",
-				Namespace: claim.Namespace,
-			},
-		}
-		if err := r.Delete(ctx, existingNP); err != nil {
-			if !k8errors.IsNotFound(err) {
+		existingNP := &networkingv1.NetworkPolicy{}
+		err := r.Get(ctx, types.NamespacedName{Namespace: claim.Namespace, Name: claim.Name + "-network-policy"}, existingNP)
+		if err == nil {
+			if err := r.Delete(ctx, existingNP); err != nil {
 				logger.Error(err, "Failed to clean up disabled NetworkPolicy")
 				return err
 			}
-		} else {
 			logger.Info("Deleted disabled NetworkPolicy", "name", existingNP.Name)
+		} else if !k8errors.IsNotFound(err) {
+			logger.Error(err, "Failed to check for existing NetworkPolicy")
+			return err
 		}
 		return nil
 	}
@@ -727,11 +733,9 @@ func (r *SandboxClaimReconciler) recordCreationLatencyMetric(ctx context.Context
 	}
 
 	launchType := asmetrics.LaunchTypeCold
-	// This is unlikely to happen; here for completeness only.
 	if sandbox == nil {
 		launchType = asmetrics.LaunchTypeUnknown
-	} else if sandbox.Annotations[sandboxcontrollers.SandboxPodNameAnnotation] != "" {
-		// Existence of the SandboxPodNameAnnotation implies the pod was adopted from a warm pool.
+	} else if sandbox.Annotations["agents.x-k8s.io/adopted-from-pool"] == "true" {
 		launchType = asmetrics.LaunchTypeWarm
 	}
 

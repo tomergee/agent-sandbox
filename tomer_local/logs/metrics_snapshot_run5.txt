@@ -1,0 +1,13 @@
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="50"} 0
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="100"} 4
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="250"} 107
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="500"} 219
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="1000"} 828
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="2500"} 1077
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="5000"} 1077
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="10000"} 1077
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="30000"} 1077
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="60000"} 1077
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="120000"} 1077
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="240000"} 1077
+agent_sandbox_claim_startup_latency_ms_bucket{launch_type="cold",sandbox_template="template-0",le="+Inf"} 1077
