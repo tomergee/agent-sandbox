@@ -1,9 +1,0 @@
-apiVersion: extensions.agents.x-k8s.io/v1alpha1
-kind: SandboxClaim
-metadata:
-  name: python-claim-1
-  namespace: default
-spec:
-  sandboxTemplateRef:
-    name: sandbox-python-template-v1
-  warmpool: python-pool
