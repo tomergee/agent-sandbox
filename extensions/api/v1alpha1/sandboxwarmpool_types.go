@@ -28,6 +28,19 @@ const (
 	TemplateRefField = ".spec.sandboxTemplateRef.name"
 )
 
+// CanarySpec defines the configuration for gradual rollout.
+type CanarySpec struct {
+	// sandboxTemplateRef is the name of the SandboxTemplate to be used for the canary version.
+	// +required
+	TemplateRef SandboxTemplateRef `json:"sandboxTemplateRef"`
+
+	// percentage is the target percentage of sandboxes to be created from the canary template.
+	// +kubebuilder:validation:Minimum=0
+	// +kubebuilder:validation:Maximum=100
+	// +required
+	Percentage int32 `json:"percentage"`
+}
+
 // SandboxWarmPoolSpec defines the desired state of SandboxWarmPool.
 type SandboxWarmPoolSpec struct {
 	// replicas is the desired number of sandboxes in the pool.
@@ -44,6 +57,10 @@ type SandboxWarmPoolSpec struct {
 	// updateStrategy - strategy for updating the SandboxWarmPool pods based on sandboxTemplateRef name change or underlying template changes
 	// +optional
 	UpdateStrategy *SandboxWarmPoolUpdateStrategy `json:"updateStrategy,omitempty"`
+
+	// canary defines the configuration for gradual rollout.
+	// +optional
+	Canary *CanarySpec `json:"canary,omitempty"`
 }
 
 // SandboxWarmPoolUpdateStrategyType is a string enumeration type that enumerates
@@ -68,6 +85,21 @@ type SandboxWarmPoolUpdateStrategy struct {
 	Type SandboxWarmPoolUpdateStrategyType `json:"type,omitempty"`
 }
 
+// CanaryStatus tracks the status of the canary rollout.
+type CanaryStatus struct {
+	// state is the current state of the canary rollout (e.g., Replenishing, AtTargetPercentage).
+	// +optional
+	State string `json:"state,omitempty"`
+
+	// failureRates contains failure rates segmented by events.
+	// +optional
+	FailureRates map[string]string `json:"failureRates,omitempty"`
+
+	// conditions contains detailed state change events.
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
 // SandboxWarmPoolStatus defines the observed state of SandboxWarmPool.
 type SandboxWarmPoolStatus struct {
 	// replicas is the total number of sandboxes in the pool.
@@ -81,6 +113,10 @@ type SandboxWarmPoolStatus struct {
 	// selector is the label selector used to find the pods in the pool.
 	// +optional
 	Selector string `json:"selector,omitempty"`
+
+	// canary tracks the status of the canary rollout.
+	// +optional
+	Canary *CanaryStatus `json:"canary,omitempty"`
 }
 
 // +genclient

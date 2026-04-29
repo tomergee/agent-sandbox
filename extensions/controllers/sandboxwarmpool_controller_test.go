@@ -829,7 +829,7 @@ func TestReconcilePool_TemplateUpdateRollout(t *testing.T) {
 			require.NoError(t, err)
 
 			// Get initial hash label
-			template, initialHash, err := r.fetchTemplateAndHash(ctx, warmPool)
+			template, initialHash, err := r.fetchTemplateAndHash(ctx, warmPool, warmPool.Spec.TemplateRef.Name)
 			require.NoError(t, err)
 
 			// Verify sandboxes exist with initial image and hash
@@ -849,7 +849,7 @@ func TestReconcilePool_TemplateUpdateRollout(t *testing.T) {
 			require.NoError(t, err)
 
 			// Get new expected hash label
-			_, updatedHash, err := r.fetchTemplateAndHash(ctx, warmPool)
+			_, updatedHash, err := r.fetchTemplateAndHash(ctx, warmPool, warmPool.Spec.TemplateRef.Name)
 			require.NoError(t, err)
 			require.NotEqual(t, initialHash, updatedHash, "Hashes should differ after template update")
 

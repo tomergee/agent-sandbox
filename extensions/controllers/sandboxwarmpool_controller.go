@@ -119,10 +119,17 @@ func (r *SandboxWarmPoolReconciler) reconcilePool(ctx context.Context, warmPool 
 	}
 
 	// Fetch template and compute hash once to avoid repeated expensive operations
-	template, currentPodTemplateHash, tmplErr := r.fetchTemplateAndHash(ctx, warmPool)
+	template, currentPodTemplateHash, tmplErr := r.fetchTemplateAndHash(ctx, warmPool, warmPool.Spec.TemplateRef.Name)
+
+	var canaryTemplate *extensionsv1alpha1.SandboxTemplate
+	var canaryPodTemplateHash string
+	var canaryTmplErr error
+	if warmPool.Spec.Canary != nil {
+		canaryTemplate, canaryPodTemplateHash, canaryTmplErr = r.fetchTemplateAndHash(ctx, warmPool, warmPool.Spec.Canary.TemplateRef.Name)
+	}
 
 	// Delete stale pods, filter pods by ownership and adopt orphans
-	activeSandboxes, allErrors := r.filterActiveSandboxes(ctx, warmPool, sandboxList.Items, template, currentPodTemplateHash, tmplErr)
+	activeSandboxes, allErrors := r.filterActiveSandboxes(ctx, warmPool, sandboxList.Items, template, currentPodTemplateHash, tmplErr, canaryTemplate, canaryPodTemplateHash, canaryTmplErr)
 
 	const warmPoolReadinessGracePeriod = 5 * time.Minute
 
@@ -146,16 +153,47 @@ func (r *SandboxWarmPoolReconciler) reconcilePool(ctx context.Context, warmPool 
 	desiredReplicas := warmPool.Spec.Replicas
 	currentReplicas := int32(len(activeSandboxes))
 
+	// Count primary and canary sandboxes
+	var activePrimarySandboxes []sandboxv1alpha1.Sandbox
+	var activeCanarySandboxes []sandboxv1alpha1.Sandbox
+
+	primaryNameHash := sandboxcontrollers.NameHash(warmPool.Spec.TemplateRef.Name)
+	var canaryNameHash string
+	if warmPool.Spec.Canary != nil {
+		canaryNameHash = sandboxcontrollers.NameHash(warmPool.Spec.Canary.TemplateRef.Name)
+	}
+
+	for _, sb := range activeSandboxes {
+		if sb.Labels[sandboxTemplateRefHash] == primaryNameHash {
+			activePrimarySandboxes = append(activePrimarySandboxes, sb)
+		} else if warmPool.Spec.Canary != nil && sb.Labels[sandboxTemplateRefHash] == canaryNameHash {
+			activeCanarySandboxes = append(activeCanarySandboxes, sb)
+		}
+	}
+
+	currentPrimary := int32(len(activePrimarySandboxes))
+	currentCanary := int32(len(activeCanarySandboxes))
+
+	// Calculate targets
+	targetCanary := int32(0)
+	if warmPool.Spec.Canary != nil {
+		targetCanary = desiredReplicas * warmPool.Spec.Canary.Percentage / 100
+	}
+	targetPrimary := desiredReplicas - targetCanary
+
 	log.Info("Pool status",
 		"desired", desiredReplicas,
 		"current", currentReplicas,
-		"poolName", warmPool.Name,
-		"poolNameHash", poolNameHash)
+		"currentPrimary", currentPrimary,
+		"currentCanary", currentCanary,
+		"targetPrimary", targetPrimary,
+		"targetCanary", targetCanary,
+		"poolName", warmPool.Name)
 
 	warmPool.Status.Replicas = currentReplicas
 	warmPool.Status.Selector = labelSelector.String()
 
-	// Calculate ready replicas by checking Sandbox Ready condition
+	// Calculate ready replicas
 	readyReplicas := int32(0)
 	for i := range activeSandboxes {
 		if isSandboxReady(&activeSandboxes[i]) {
@@ -164,45 +202,45 @@ func (r *SandboxWarmPoolReconciler) reconcilePool(ctx context.Context, warmPool 
 	}
 	warmPool.Status.ReadyReplicas = readyReplicas
 
-	// Create new sandboxes if we need more
-	if currentReplicas < desiredReplicas && tmplErr == nil {
-		sandboxesToCreate := desiredReplicas - currentReplicas
-		log.Info("Creating new pool sandboxes", "count", sandboxesToCreate)
-
-		for range sandboxesToCreate {
-			if err := r.createPoolSandbox(ctx, warmPool, poolNameHash, template, currentPodTemplateHash); err != nil {
-				log.Error(err, "Failed to create pool sandbox")
-				allErrors = errors.Join(allErrors, err)
+	// Replenishment Logic
+	if tmplErr == nil {
+		// Replenish Primary
+		if currentPrimary < targetPrimary {
+			toCreate := targetPrimary - currentPrimary
+			log.Info("Creating new primary sandboxes", "count", toCreate)
+			for i := int32(0); i < toCreate; i++ {
+				if err := r.createPoolSandbox(ctx, warmPool, poolNameHash, template, currentPodTemplateHash, warmPool.Spec.TemplateRef.Name); err != nil {
+					log.Error(err, "Failed to create primary pool sandbox")
+					allErrors = errors.Join(allErrors, err)
+				}
+			}
+		}
+		// Replenish Canary
+		if warmPool.Spec.Canary != nil && canaryTmplErr == nil && currentCanary < targetCanary {
+			toCreate := targetCanary - currentCanary
+			log.Info("Creating new canary sandboxes", "count", toCreate)
+			for i := int32(0); i < toCreate; i++ {
+				if err := r.createPoolSandbox(ctx, warmPool, poolNameHash, canaryTemplate, canaryPodTemplateHash, warmPool.Spec.Canary.TemplateRef.Name); err != nil {
+					log.Error(err, "Failed to create canary pool sandbox")
+					allErrors = errors.Join(allErrors, err)
+				}
 			}
 		}
 	}
 
-	// Delete excess sandboxes if we have too many
-	if currentReplicas > desiredReplicas {
-		sandboxesToDelete := currentReplicas - desiredReplicas
-		log.Info("Deleting excess sandboxes", "count", sandboxesToDelete)
+	// Deletion Logic (Target Enforcement)
+	// Delete excess Primary if we have too many
+	if currentPrimary > targetPrimary {
+		toDelete := currentPrimary - targetPrimary
+		log.Info("Deleting excess primary sandboxes", "count", toDelete)
+		allErrors = errors.Join(allErrors, r.deleteExcessSandboxes(ctx, activePrimarySandboxes, toDelete))
+	}
 
-		// Prioritize deleting unready sandboxes before ready ones,
-		// then newest first within each group.
-		slices.SortFunc(activeSandboxes, func(a, b sandboxv1alpha1.Sandbox) int {
-			aReady := isSandboxReady(&a)
-			bReady := isSandboxReady(&b)
-			if aReady != bReady {
-				if aReady {
-					return 1 // a ready, b not ready -> b first (delete unready first)
-				}
-				return -1 // b ready, a not ready -> a first
-			}
-			return b.CreationTimestamp.Compare(a.CreationTimestamp.Time) // newest first
-		})
-
-		for i := int32(0); i < sandboxesToDelete && i < int32(len(activeSandboxes)); i++ {
-			sb := &activeSandboxes[i]
-			if err := r.Delete(ctx, sb); err != nil {
-				log.Error(err, "Failed to delete sandbox", "sandbox", sb.Name)
-				allErrors = errors.Join(allErrors, err)
-			}
-		}
+	// Delete excess Canary if we have too many
+	if currentCanary > targetCanary {
+		toDelete := currentCanary - targetCanary
+		log.Info("Deleting excess canary sandboxes", "count", toDelete)
+		allErrors = errors.Join(allErrors, r.deleteExcessSandboxes(ctx, activeCanarySandboxes, toDelete))
 	}
 
 	if tmplErr != nil && !k8serrors.IsNotFound(tmplErr) {
@@ -221,7 +259,17 @@ func (r *SandboxWarmPoolReconciler) adoptSandbox(ctx context.Context, warmPool *
 }
 
 // filterActiveSandboxes filters the list of sandboxes, deleting stale ones and adopting orphans.
-func (r *SandboxWarmPoolReconciler) filterActiveSandboxes(ctx context.Context, warmPool *extensionsv1alpha1.SandboxWarmPool, sandboxes []sandboxv1alpha1.Sandbox, template *extensionsv1alpha1.SandboxTemplate, currentPodTemplateHash string, tmplErr error) ([]sandboxv1alpha1.Sandbox, error) {
+func (r *SandboxWarmPoolReconciler) filterActiveSandboxes(
+	ctx context.Context,
+	warmPool *extensionsv1alpha1.SandboxWarmPool,
+	sandboxes []sandboxv1alpha1.Sandbox,
+	primaryTemplate *extensionsv1alpha1.SandboxTemplate,
+	primaryHash string,
+	primaryErr error,
+	canaryTemplate *extensionsv1alpha1.SandboxTemplate,
+	canaryHash string,
+	canaryErr error,
+) ([]sandboxv1alpha1.Sandbox, error) {
 	log := log.FromContext(ctx)
 	var activeSandboxes []sandboxv1alpha1.Sandbox
 	var allErrors error
@@ -259,8 +307,19 @@ func (r *SandboxWarmPoolReconciler) filterActiveSandboxes(ctx context.Context, w
 			continue
 		}
 
-		if tmplErr == nil && (updateStrategy == extensionsv1alpha1.RecreateSandboxWarmPoolUpdateStrategyType || isOrphan) {
-			if r.isSandboxStale(ctx, &sb, template, currentPodTemplateHash, vettedHashes) {
+		// Determine which template to use for staleness check
+		targetTemplate := primaryTemplate
+		targetHash := primaryHash
+		targetErr := primaryErr
+
+		if warmPool.Spec.Canary != nil && sb.Labels[sandboxTemplateRefHash] == sandboxcontrollers.NameHash(warmPool.Spec.Canary.TemplateRef.Name) {
+			targetTemplate = canaryTemplate
+			targetHash = canaryHash
+			targetErr = canaryErr
+		}
+
+		if targetErr == nil && targetTemplate != nil && (updateStrategy == extensionsv1alpha1.RecreateSandboxWarmPoolUpdateStrategyType || isOrphan) {
+			if r.isSandboxStale(ctx, &sb, targetTemplate, targetHash, vettedHashes) {
 				log.Info("Deleting stale sandbox", "sandbox", sb.Name, "isOrphan", isOrphan)
 				if err := r.Delete(ctx, &sb); err != nil {
 					log.Error(err, "Failed to delete stale sandbox", "sandbox", sb.Name)
@@ -284,6 +343,35 @@ func (r *SandboxWarmPoolReconciler) filterActiveSandboxes(ctx context.Context, w
 	return activeSandboxes, allErrors
 }
 
+// deleteExcessSandboxes deletes the specified number of sandboxes, prioritizing unready and newest ones.
+func (r *SandboxWarmPoolReconciler) deleteExcessSandboxes(ctx context.Context, sandboxes []sandboxv1alpha1.Sandbox, toDelete int32) error {
+	log := log.FromContext(ctx)
+	var allErrors error
+
+	// Prioritize deleting unready sandboxes before ready ones,
+	// then newest first within each group.
+	slices.SortFunc(sandboxes, func(a, b sandboxv1alpha1.Sandbox) int {
+		aReady := isSandboxReady(&a)
+		bReady := isSandboxReady(&b)
+		if aReady != bReady {
+			if aReady {
+				return 1 // a ready, b not ready -> b first (delete unready first)
+			}
+			return -1 // b ready, a not ready -> a first
+		}
+		return b.CreationTimestamp.Compare(a.CreationTimestamp.Time) // newest first
+	})
+
+	for i := int32(0); i < toDelete && i < int32(len(sandboxes)); i++ {
+		sb := &sandboxes[i]
+		if err := r.Delete(ctx, sb); err != nil {
+			log.Error(err, "Failed to delete sandbox", "sandbox", sb.Name)
+			allErrors = errors.Join(allErrors, err)
+		}
+	}
+	return allErrors
+}
+
 // computePodTemplateHash computes a hash of the sandbox template's Spec.PodTemplate.
 func computePodTemplateHash(template *extensionsv1alpha1.SandboxTemplate) (string, error) {
 	specJSON, err := json.Marshal(template.Spec.PodTemplate)
@@ -294,34 +382,34 @@ func computePodTemplateHash(template *extensionsv1alpha1.SandboxTemplate) (strin
 }
 
 // fetchTemplateAndHash fetches the sandbox template and computes its hash.
-func (r *SandboxWarmPoolReconciler) fetchTemplateAndHash(ctx context.Context, warmPool *extensionsv1alpha1.SandboxWarmPool) (*extensionsv1alpha1.SandboxTemplate, string, error) {
+func (r *SandboxWarmPoolReconciler) fetchTemplateAndHash(ctx context.Context, warmPool *extensionsv1alpha1.SandboxWarmPool, templateName string) (*extensionsv1alpha1.SandboxTemplate, string, error) {
 	log := log.FromContext(ctx)
-	template, tmplErr := r.getTemplate(ctx, warmPool)
+	template, tmplErr := r.getTemplate(ctx, warmPool, templateName)
 	var currentPodTemplateHash string
 	if tmplErr == nil {
 		currentPodTemplateHash, tmplErr = computePodTemplateHash(template)
 	}
 
 	if tmplErr != nil {
-		log.Error(tmplErr, "Failed to get sandbox template and hash", "templateRef", warmPool.Spec.TemplateRef.Name)
+		log.Error(tmplErr, "Failed to get sandbox template and hash", "templateRef", templateName)
 	}
 	return template, currentPodTemplateHash, tmplErr
 }
 
 // createPoolSandbox creates a full Sandbox CR (with pod template, service, etc.) for the warm pool.
-func (r *SandboxWarmPoolReconciler) createPoolSandbox(ctx context.Context, warmPool *extensionsv1alpha1.SandboxWarmPool, poolNameHash string, template *extensionsv1alpha1.SandboxTemplate, currentPodTemplateHash string) error {
+func (r *SandboxWarmPoolReconciler) createPoolSandbox(ctx context.Context, warmPool *extensionsv1alpha1.SandboxWarmPool, poolNameHash string, template *extensionsv1alpha1.SandboxTemplate, currentPodTemplateHash string, templateName string) error {
 	log := log.FromContext(ctx)
 
 	// Build labels for the Sandbox CR
 	sandboxLabels := map[string]string{
 		warmPoolSandboxLabel:                        poolNameHash,
-		sandboxTemplateRefHash:                      sandboxcontrollers.NameHash(warmPool.Spec.TemplateRef.Name),
+		sandboxTemplateRefHash:                      sandboxcontrollers.NameHash(templateName),
 		sandboxv1alpha1.SandboxPodTemplateHashLabel: currentPodTemplateHash,
 	}
 
 	// Build annotations for the Sandbox CR
 	sandboxAnnotations := map[string]string{
-		sandboxv1alpha1.SandboxTemplateRefAnnotation: warmPool.Spec.TemplateRef.Name,
+		sandboxv1alpha1.SandboxTemplateRefAnnotation: templateName,
 	}
 
 	// Copy template pod labels into sandbox pod template
@@ -329,7 +417,7 @@ func (r *SandboxWarmPoolReconciler) createPoolSandbox(ctx context.Context, warmP
 	maps.Copy(podLabels, template.Spec.PodTemplate.ObjectMeta.Labels)
 	// Propagate pool and template labels to pod template for consistency and targeting
 	podLabels[warmPoolSandboxLabel] = poolNameHash
-	podLabels[sandboxTemplateRefHash] = sandboxcontrollers.NameHash(warmPool.Spec.TemplateRef.Name)
+	podLabels[sandboxTemplateRefHash] = sandboxcontrollers.NameHash(templateName)
 	podLabels[sandboxv1alpha1.SandboxPodTemplateHashLabel] = currentPodTemplateHash
 
 	podAnnotations := make(map[string]string)
@@ -411,16 +499,16 @@ func (r *SandboxWarmPoolReconciler) updateStatus(ctx context.Context, oldStatus 
 	return nil
 }
 
-func (r *SandboxWarmPoolReconciler) getTemplate(ctx context.Context, warmPool *extensionsv1alpha1.SandboxWarmPool) (*extensionsv1alpha1.SandboxTemplate, error) {
+func (r *SandboxWarmPoolReconciler) getTemplate(ctx context.Context, warmPool *extensionsv1alpha1.SandboxWarmPool, templateName string) (*extensionsv1alpha1.SandboxTemplate, error) {
 	template := &extensionsv1alpha1.SandboxTemplate{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: warmPool.Namespace,
-			Name:      warmPool.Spec.TemplateRef.Name,
+			Name:      templateName,
 		},
 	}
 	if err := r.Get(ctx, client.ObjectKeyFromObject(template), template); err != nil {
 		if !k8serrors.IsNotFound(err) {
-			err = fmt.Errorf("failed to get sandbox template %q: %w", warmPool.Spec.TemplateRef.Name, err)
+			err = fmt.Errorf("failed to get sandbox template %q: %w", templateName, err)
 		}
 		return nil, err
 	}
