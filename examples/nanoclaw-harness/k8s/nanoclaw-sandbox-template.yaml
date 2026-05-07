@@ -1,0 +1,23 @@
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: nanoclaw-sandbox-template
+  namespace: default
+spec:
+  envVarsInjectionPolicy: Allowed
+  networkPolicyManagement: Managed
+  podTemplate:
+    spec:
+      containers:
+      - image: us-west1-docker.pkg.dev/gke-ai-eco-dev/agent-sandbox-repo/nanoclaw-agent:latest
+        name: agent-runner
+        ports:
+        - containerPort: 3000
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+        env:
+        - name: ASSISTANT_NAME
+          value: "Andy" # Default, will be overridden or supplemented by claim env if allowed

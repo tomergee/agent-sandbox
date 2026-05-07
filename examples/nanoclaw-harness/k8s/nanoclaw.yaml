@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nanoclaw-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: nanoclaw-role
+  namespace: default
+rules:
+- apiGroups: ["extensions.agents.x-k8s.io"]
+  resources: ["sandboxclaims"]
+  verbs: ["create", "get", "list", "watch", "delete"]
+- apiGroups: ["agents.x-k8s.io"]
+  resources: ["sandboxes"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nanoclaw-rolebinding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: nanoclaw-sa
+  namespace: default
+roleRef:
+  kind: Role
+  name: nanoclaw-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nanoclaw-data-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nanoclaw-host-svc
+  namespace: default
+spec:
+  selector:
+    app: nanoclaw
+  ports:
+    - name: webhook
+      port: 3000
+      targetPort: 3000
+    - name: callback
+      port: 3001
+      targetPort: 3001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nanoclaw-deployment
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nanoclaw
+  template:
+    metadata:
+      labels:
+        app: nanoclaw
+    spec:
+      serviceAccountName: nanoclaw-sa
+      containers:
+      - name: nanoclaw
+        image: us-west1-docker.pkg.dev/gke-ai-eco-dev/agent-sandbox-repo/nanoclaw-host:latest
+        ports:
+        - containerPort: 3000
+        - containerPort: 3001
+        env:
+        - name: RUNNER_TYPE
+          value: "agent-sandbox"
+        - name: HOST_CALLBACK_URL
+          value: "http://nanoclaw-host-svc:3001/callback"
+        - name: AGENT_SANDBOX_NAMESPACE
+          value: "default"
+        - name: AGENT_SANDBOX_TEMPLATE
+          value: "nanoclaw-sandbox-template" # Ensure this template exists in your cluster
+        volumeMounts:
+        - name: data-volume
+          mountPath: /workspace/data # Assuming NanoClaw stores data here based on config.ts
+      volumes:
+      - name: data-volume
+        persistentVolumeClaim:
+          claimName: nanoclaw-data-pvc
