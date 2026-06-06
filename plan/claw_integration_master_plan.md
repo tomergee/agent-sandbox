@@ -1,0 +1,101 @@
+# Master Plan: Generic Claw Agent Sandbox Integration
+
+This document outlines the master architecture and implementation roadmap to integrate any **claw-type agent manager** (e.g., OpenClaw, Hermes, NemoClaw) with **Agent Sandbox** using Kubernetes-managed Suspend/Resume states and dynamic cron pre-wakeups.
+
+To ensure stable code quality and clean reviews, the implementation is broken down into **5 separate PR-sized components (L to XXL)**.
+
+---
+
+## 🏗️ Architecture Design (Generic Abstract Interface)
+
+```
+        Traffic (HTTP/WS) / Scheduled Crons
+                      │
+                      ▼
+┌──────────────────────────────────────────┐
+│      Lightweight Traffic Proxy           │ (Always-on Proxy)
+│  - Intercepts and buffers connection     │
+│  - Sends resume signal to Daemon         │
+└─────────────────────┬────────────────────┘
+                      │
+                      ▼ (Resume Webhook)
+┌──────────────────────────────────────────┐
+│       Sandbox Lifecycle Daemon           │ (Go Daemon)
+│  - Patches Sandbox Spec.OperatingMode    │
+│  - Queries Agent Manager for Idle/Cron   │
+└─────────────────────┬────────────────────┘
+                      │
+                      ▼ (K8s API)
+┌──────────────────────────────────────────┐
+│       GKE Sandbox Controller             │ (Go Controller)
+│  - Scales Pod to 0 (Suspended)           │
+│  - Restores Pod + PVC (Running)          │
+└─────────────────────┬────────────────────┘
+                      │
+                      ▼ (Restored Pod)
+┌──────────────────────────────────────────┐
+│  Generic Agent Manager Container         │ (OpenClaw / Hermes)
+│  - Node/Python Gateway                   │
+│  - Persistent /root/.openclaw PVC       │
+└──────────────────────────────────────────┘
+```
+
+---
+
+## 📅 PR Breakdown & Scope
+
+### PR 1: Core API & Reconciler Enhancements [Size: L]
+* **Objective**: Add GKE `operatingMode` and lifecycle control parameters to the core CRDs and implement backing container deletion/scheduling logic.
+* **Deliverables**:
+  - Add `spec.operatingMode` (with values `Running` and `Suspended`) to `Sandbox` and `SandboxClaim` CRDs.
+  - Implement reconciler logic inside `controllers/sandbox_controller.go`:
+    - On `Suspended`: Gracefully delete the backing Pod, but retain the PVC and Sandbox CRD status.
+    - On `Running`: Reschedule the Pod, automatically remounting the existing workspace PVC volume.
+  - Regenerate client deepcopy, listers, and typed Go clientsets (`clients/k8s/`).
+
+---
+
+### PR 2: Generic Lifecycle Daemon (Go/gRPC/HTTP Server) [Size: XL]
+* **Objective**: Build the server-side namespace supervisor that maps lifecycle HTTP calls to Kubernetes client-go patches.
+* **Deliverables**:
+  - Implement the daemon binary under `cmd/sandbox-lifecycle-daemon/main.go`.
+  - Expose API endpoints:
+    - `POST /v1/sandbox/suspend`: Patches `spec.operatingMode = "Suspended"` on the target sandbox.
+    - `POST /v1/sandbox/resume`: Patches `spec.operatingMode = "Running"` (or leases a pod from the WarmPool).
+    - `GET /v1/sandbox/status`: Checks Pod status and reports whether the sandbox is ready, suspended, or provisioning.
+  - **Generic Back-Channel Webhook Interface**: 
+    - Queries the agent manager container's health endpoint (e.g. `GET /api/v1/lifecycle/status`) to check if there are running tasks or active WebSocket sessions before suspending.
+
+---
+
+### PR 3: Always-On Ingress/Traffic Broker Proxy (Go) [Size: L]
+* **Objective**: Deploy a lightweight, highly efficient connection proxy that buffers inbound requests for suspended sandboxes.
+* **Deliverables**:
+  - A Go proxy server deployed as a singleton Deployment in `agent-sandbox-system`.
+  - **Buffering Engine**: 
+    - Catches initial HTTP requests or WebSocket handshake frames.
+    - Sends an asynchronous `/resume` trigger to the Lifecycle Daemon.
+    - Polls GKE until the target Sandbox `Ready` status condition becomes `True`.
+    - Automatically replays the HTTP stream or handovers the raw TCP connection to the restored container.
+
+---
+
+### PR 4: Dynamic Pre-Wakeup Cron Trigger Controller (Go) [Size: L]
+* **Objective**: Implement a cluster-wide scheduler controller that handles dynamic wakeup alarms for suspended containers.
+* **Deliverables**:
+  - Build a custom controller in the controller manager that watches `Sandbox` resources.
+  - **Trigger Calculation**:
+    - Queries OpenClaw's `/api/v1/cron/next` endpoint right before suspension.
+    - Saves the timestamp exactly **2 minutes prior** to the next scheduled run in the annotation `agents.x-k8s.io/next-wakeup`.
+  - **Alarm Scheduler**:
+    - The controller monitors this annotation and schedules a lightweight, temporary Kubernetes Job or GKE timer.
+    - When the alarm fires, the Job calls `/resume` to ensure the container is fully running and warm when the internal cron trigger fires.
+
+---
+
+### PR 5: `k8s-agent-sandbox-js` (Universal JS/TS Client SDK) [Size: XXL]
+* **Objective**: Provide a production-ready, hand-written TypeScript client SDK to align Node.js-based agent managers with GKE Sandboxes.
+* **Deliverables**:
+  - Build connection tunneling, command execution, and port-forwarding modules using Node.js stream multiplexing.
+  - Expose standard client APIs matching Go and Python SDK interfaces.
+  - Provide a lifecycle adapter hook to expose the agent manager's state (`idle` status, active runs count, next cron scheduled runs) to the Lifecycle Daemon.
