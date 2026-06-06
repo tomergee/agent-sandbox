@@ -40,17 +40,13 @@ To ensure stable code quality and clean reviews, the implementation is broken do
 └──────────────────────────────────────────┘
 ```
 
----
-
 ## 📅 PR Breakdown & Scope
 
-### PR 1: Core API & Reconciler Enhancements [Size: L]
-* **Objective**: Add GKE `operatingMode` and lifecycle control parameters to the core CRDs and implement backing container deletion/scheduling logic.
+### PR 1: Propagate OperatingMode to SandboxClaim [Size: L]
+* **Objective**: Add `operatingMode` control to the `SandboxClaim` CRD and update the claim controller to mirror it to the adopted Sandbox.
 * **Deliverables**:
-  - Add `spec.operatingMode` (with values `Running` and `Suspended`) to `Sandbox` and `SandboxClaim` CRDs.
-  - Implement reconciler logic inside `controllers/sandbox_controller.go`:
-    - On `Suspended`: Gracefully delete the backing Pod, but retain the PVC and Sandbox CRD status.
-    - On `Running`: Reschedule the Pod, automatically remounting the existing workspace PVC volume.
+  - Add `spec.operatingMode` (Running, Suspended) to the `SandboxClaimSpec` in `extensions/api/v1beta1/sandboxclaim_types.go`.
+  - Update `extensions/controllers/sandboxclaim_controller.go` to watch the claim's `spec.operatingMode` and automatically patch the underlying adopted `Sandbox` resource with the matching operatingMode.
   - Regenerate client deepcopy, listers, and typed Go clientsets (`clients/k8s/`).
 
 ---
