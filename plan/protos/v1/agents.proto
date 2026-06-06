@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package agents.integration.v1;
+
+option go_package = "sigs.k8s.io/agent-sandbox/plan/protos/v1;v1";
+
+// --------------------------------------------------------------------
+// Sandbox Lifecycle Service (Exposed by Sandbox Lifecycle Daemon)
+// --------------------------------------------------------------------
+service LifecycleService {
+  // Triggers the scale-down/suspension of a Sandbox, including active CRIU checkpointing
+  rpc SuspendSandbox(SuspendSandboxRequest) returns (SuspendSandboxResponse);
+
+  // Resumes a Sandbox, restoring process state from a warm pool snapshot
+  rpc ResumeSandbox(ResumeSandboxRequest) returns (ResumeSandboxResponse);
+
+  // Queries the current status, state, and conditions of a Sandbox
+  rpc GetSandboxStatus(GetSandboxStatusRequest) returns (GetSandboxStatusResponse);
+}
+
+enum OperatingMode {
+  OPERATING_MODE_UNSPECIFIED = 0;
+  OPERATING_MODE_RUNNING = 1;
+  OPERATING_MODE_SUSPENDED = 2;
+}
+
+enum SandboxState {
+  SANDBOX_STATE_UNSPECIFIED = 0;
+  SANDBOX_STATE_PROVISIONING = 1;
+  SANDBOX_STATE_RUNNING = 2;
+  SANDBOX_STATE_SUSPENDING = 3;
+  SANDBOX_STATE_SUSPENDED = 4;
+  SANDBOX_STATE_RESUMING = 5;
+}
+
+message SuspendSandboxRequest {
+  string name = 1;
+  string namespace = 2;
+  bool force_snapshot = 3;
+  int64 grace_period_seconds = 4;
+}
+
+message SuspendSandboxResponse {
+  bool success = 1;
+  string snapshot_uid = 2;
+  string error_message = 3;
+}
+
+message ResumeSandboxRequest {
+  string name = 1;
+  string namespace = 2;
+  string snapshot_uid = 3;
+  bool pre_warm_only = 4;
+}
+
+message ResumeSandboxResponse {
+  bool success = 1;
+  string pod_ip = 2;
+  string error_message = 3;
+}
+
+message GetSandboxStatusRequest {
+  string name = 1;
+  string namespace = 2;
+}
+
+message Condition {
+  string type = 1;
+  string status = 2;
+  string reason = 3;
+  string message = 4;
+  int64 last_transition_time_epoch_ms = 5;
+}
+
+message GetSandboxStatusResponse {
+  string name = 1;
+  SandboxState state = 2;
+  OperatingMode desired_mode = 3;
+  repeated Condition conditions = 4;
+}
+
+// --------------------------------------------------------------------
+// Ingress Proxy Service (Exposed by Ingress/Traffic Broker)
+// --------------------------------------------------------------------
+service ProxyService {
+  // Registers a dynamic routing endpoint for an active sandbox
+  rpc RegisterRoute(RegisterRouteRequest) returns (RegisterRouteResponse);
+
+  // Evicts a route when a sandbox scales down
+  rpc EvictRoute(EvictRouteRequest) returns (EvictRouteResponse);
+}
+
+message RegisterRouteRequest {
+  string sandbox_name = 1;
+  string namespace = 2;
+  string target_ip = 3;
+  int32 target_port = 4;
+}
+
+message RegisterRouteResponse {
+  bool registered = 1;
+}
+
+message EvictRouteRequest {
+  string sandbox_name = 1;
+  string namespace = 2;
+}
+
+message EvictRouteResponse {
+  bool evicted = 1;
+}
+
+// --------------------------------------------------------------------
+// OpenClaw Idle State Service (Exposed by OpenClaw Container/Scaling Agent)
+// --------------------------------------------------------------------
+service ScaleService {
+  // Queries details on active queues, embedded runs, and idle status
+  rpc GetIdleMetrics(GetIdleMetricsRequest) returns (GetIdleMetricsResponse);
+}
+
+message GetIdleMetricsRequest {
+  string sandbox_name = 1;
+}
+
+message GetIdleMetricsResponse {
+  bool is_idle = 1;
+  int32 queue_size = 2;
+  int32 pending_replies = 3;
+  int32 active_embedded_runs = 4;
+  int32 active_tasks = 5;
+}

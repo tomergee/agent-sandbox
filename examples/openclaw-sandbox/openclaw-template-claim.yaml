@@ -1,0 +1,85 @@
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: openclaw-template
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        sandbox: openclaw-template-sandbox
+    spec:
+      dnsPolicy: ClusterFirst
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      initContainers:
+        - name: init-config
+          image: us-central1-docker.pkg.dev/gke-ai-eco-dev/agent-sandbox-repo/openclaw:latest
+          command: ['sh', '-c', 'cp /etc/openclaw-readonly/openclaw.json /etc/openclaw/openclaw.json']
+          volumeMounts:
+            - name: cm-volume
+              mountPath: /etc/openclaw-readonly
+            - name: openclaw-etc-writable
+              mountPath: /etc/openclaw
+      containers:
+        - name: openclaw
+          image: us-central1-docker.pkg.dev/gke-ai-eco-dev/agent-sandbox-repo/openclaw:latest
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: true
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+          env:
+            - name: OPENCLAW_GATEWAY_TOKEN
+              value: "dummy-token-for-sandbox"
+            - name: OPENCLAW_CONFIG_PATH
+              value: "/etc/openclaw/openclaw.json"
+          command:
+            - sh
+            - -c
+            - |
+              ssh-keygen -A
+              /usr/sbin/sshd -D &
+              node dist/index.js gateway --bind=lan --port 18789 --allow-unconfigured --verbose
+          ports:
+            - containerPort: 18789
+            - containerPort: 18790
+          volumeMounts:
+            - mountPath: /root/.openclaw
+              name: workspaces-pvc
+            - mountPath: /etc/openclaw
+              name: openclaw-etc-writable
+      volumes:
+        - name: cm-volume
+          configMap:
+            name: openclaw-config
+        - name: openclaw-etc-writable
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: workspaces-pvc
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: openclaw-warmpool
+spec:
+  replicas: 1
+  sandboxTemplateRef:
+    name: openclaw-template
+---
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxClaim
+metadata:
+  name: openclaw-sandbox-claim
+spec:
+  warmPoolRef:
+    name: openclaw-warmpool
