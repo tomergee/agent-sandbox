@@ -77,6 +77,9 @@ To ensure stable code quality and clean reviews, the implementation is broken do
     - Monitor GKE (using informers/watchers or a status query loop) until the Sandbox status Ready condition becomes `True`.
     - Once ready, forward the buffered request and establish TCP streaming to the restored pod.
 
+> [!TIP]
+> **Implementation Alternative (Go Rewrite)**: While the existing `sandbox-router` is written in Python, we should consider implementing/rewriting a Go-based version of the router. This aligns directly with the official repository roadmap (`roadmap.md`: "Support the sandbox-router as a first-class citizen within the project written in Go"), provides better performance and lower resource overhead for request proxying/buffering, and enables sharing client-go informers and controllers packages directly.
+
 ---
 
 ### PR 4: Dynamic Pre-Wakeup Cron Trigger Controller (Go) [Size: L]
