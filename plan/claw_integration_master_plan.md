@@ -67,15 +67,15 @@ To ensure stable code quality and clean reviews, the implementation is broken do
 
 ---
 
-### PR 3: Always-On Ingress/Traffic Broker Proxy (Go) [Size: L]
-* **Objective**: Deploy a lightweight, highly efficient connection proxy that buffers inbound requests for suspended sandboxes.
+### PR 3: Wake-on-Traffic Buffering in Sandbox Router [Size: L]
+* **Objective**: Enhance the existing `sandbox-router` component to support buffering of connection requests and automated wakeup triggering for suspended Sandboxes.
 * **Deliverables**:
-  - A Go proxy server deployed as a singleton Deployment in `agent-sandbox-system`.
-  - **Buffering Engine**: 
-    - Catches initial HTTP requests or WebSocket handshake frames.
-    - Sends an asynchronous `/resume` trigger to the Lifecycle Daemon.
-    - Polls GKE until the target Sandbox `Ready` status condition becomes `True`.
-    - Automatically replays the HTTP stream or handovers the raw TCP connection to the restored container.
+  - Update the `sandbox-router` codebase (or add a middleware layer) to detect when a target Sandbox is suspended.
+  - **Buffering & Replay Engine**: 
+    - Upon receiving a client HTTP request or WebSocket connection request for an offline/suspended Sandbox, intercept the request and hold it open.
+    - Send an asynchronous wake-up HTTP POST call to the **Sandbox Lifecycle Daemon** (`POST /v1/sandbox/resume`).
+    - Monitor GKE (using informers/watchers or a status query loop) until the Sandbox status Ready condition becomes `True`.
+    - Once ready, forward the buffered request and establish TCP streaming to the restored pod.
 
 ---
 
