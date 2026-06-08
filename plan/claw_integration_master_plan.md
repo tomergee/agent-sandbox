@@ -49,6 +49,9 @@ To ensure stable code quality and clean reviews, the implementation is broken do
   - Update `extensions/controllers/sandboxclaim_controller.go` to watch the claim's `spec.operatingMode` and automatically patch the underlying adopted `Sandbox` resource with the matching operatingMode.
   - Regenerate client deepcopy, listers, and typed Go clientsets (`clients/k8s/`).
 
+> [!NOTE]
+> **Architectural Rationale**: In a multi-tenant GKE cluster, client applications and SDKs only have RBAC access to namespaced tenant resources like `SandboxClaim`. They do not (and should not) have permissions to read or modify the underlying GKE-managed `Sandbox` resources directly. By exposing `spec.operatingMode` on the `SandboxClaim`, we ensure that tenants can trigger suspend/resume lifecycle states directly through their claimed namespace boundary.
+
 ---
 
 ### PR 2: Generic Lifecycle Daemon (Go/gRPC/HTTP Server) [Size: XL]
