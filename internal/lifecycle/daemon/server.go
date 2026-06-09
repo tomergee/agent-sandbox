@@ -303,3 +303,57 @@ func (s *Server) writeJSON(w http.ResponseWriter, status int, val interface{}) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(val)
 }
+
+func (s *Server) StartWakeupScheduler(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	log.Println("Starting background wakeup scheduler loop (polling every 5s)...")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.checkAndWakeupSandboxes(ctx)
+		}
+	}
+}
+
+func (s *Server) checkAndWakeupSandboxes(ctx context.Context) {
+	sbs := &sandboxv1beta1.SandboxList{}
+	if err := s.client.List(ctx, sbs); err != nil {
+		log.Printf("Failed to list Sandboxes for wakeup check: %v", err)
+		return
+	}
+
+	for _, sb := range sbs.Items {
+		if sb.Spec.OperatingMode != sandboxv1beta1.SandboxOperatingModeSuspended {
+			continue
+		}
+
+		wakeupTimeStr, exists := sb.Annotations["agents.x-k8s.io/next-wakeup"]
+		if !exists {
+			continue
+		}
+
+		wakeupTime, err := time.Parse(time.RFC3339, wakeupTimeStr)
+		if err != nil {
+			log.Printf("Failed to parse next-wakeup annotation value %q for Sandbox %s/%s: %v", wakeupTimeStr, sb.Namespace, sb.Name, err)
+			continue
+		}
+
+		if time.Now().After(wakeupTime) {
+			log.Printf("Auto-waking suspended Sandbox %s/%s because next-wakeup threshold %s reached", sb.Namespace, sb.Name, wakeupTimeStr)
+
+			patch := client.MergeFrom(sb.DeepCopy())
+			sb.Spec.OperatingMode = sandboxv1beta1.SandboxOperatingModeRunning
+			// Remove the annotation so we don't trigger it again
+			delete(sb.Annotations, "agents.x-k8s.io/next-wakeup")
+
+			if err := s.client.Patch(ctx, &sb, patch); err != nil {
+				log.Printf("Failed to auto-resume Sandbox %s/%s: %v", sb.Namespace, sb.Name, err)
+			}
+		}
+	}
+}
+

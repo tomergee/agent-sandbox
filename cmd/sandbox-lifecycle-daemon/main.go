@@ -66,6 +66,10 @@ func main() {
 	mux := http.NewServeMux()
 	srv.RegisterHandlers(mux)
 
+	// Start background wakeup scheduler
+	ctx := ctrl.SetupSignalHandler()
+	go srv.StartWakeupScheduler(ctx)
+
 	addr := fmt.Sprintf(":%d", port)
 	log.Printf("Listening on %s", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {

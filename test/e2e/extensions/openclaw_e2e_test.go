@@ -32,6 +32,7 @@ import (
 
 	sandboxv1beta1 "sigs.k8s.io/agent-sandbox/api/v1beta1"
 	extensionsv1beta1 "sigs.k8s.io/agent-sandbox/extensions/api/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/agent-sandbox/test/e2e/framework"
 	"sigs.k8s.io/agent-sandbox/test/e2e/framework/predicates"
 )
@@ -179,3 +180,123 @@ func TestOpenClawSandboxClaimCorrelationAndPersistence(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "E2E PVC State Preserved!", contentAfterResume)
 }
+
+func TestOpenClawScheduledWakeup(t *testing.T) {
+	tc := framework.NewTestContext(t)
+
+	ns := &corev1.Namespace{}
+	ns.Name = fmt.Sprintf("openclaw-wakeup-test-%d", time.Now().UnixNano())
+	require.NoError(t, tc.CreateWithCleanup(t.Context(), ns))
+
+	// 1. Create SandboxTemplate
+	template := &extensionsv1beta1.SandboxTemplate{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "openclaw-wakeup-template",
+			Namespace: ns.Name,
+		},
+		Spec: extensionsv1beta1.SandboxTemplateSpec{
+			PodTemplate: sandboxv1beta1.PodTemplate{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:    "busybox",
+							Image:   "docker.io/library/busybox:1.36",
+							Command: []string{"sh", "-c", "sleep 3600"},
+						},
+					},
+				},
+			},
+		},
+	}
+	require.NoError(t, tc.CreateWithCleanup(t.Context(), template))
+
+	// 2. Create SandboxWarmPool (replicas = 1)
+	warmPool := &extensionsv1beta1.SandboxWarmPool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "openclaw-wakeup-warmpool",
+			Namespace: ns.Name,
+		},
+		Spec: extensionsv1beta1.SandboxWarmPoolSpec{
+			Replicas:    1,
+			TemplateRef: extensionsv1beta1.SandboxTemplateRef{Name: "openclaw-wakeup-template"},
+		},
+	}
+	require.NoError(t, tc.CreateWithCleanup(t.Context(), warmPool))
+
+	// Wait for the WarmPool to become ready with 1 replica
+	tc.MustWaitForObject(warmPool, predicates.ReadyReplicasConditionIsTrue)
+
+	// 3. Create SandboxClaim (which provisions Sandbox)
+	claim := &extensionsv1beta1.SandboxClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "openclaw-wakeup-claim",
+			Namespace: ns.Name,
+		},
+		Spec: extensionsv1beta1.SandboxClaimSpec{
+			WarmPoolRef: extensionsv1beta1.SandboxWarmPoolRef{
+				Name: "openclaw-wakeup-warmpool",
+			},
+		},
+	}
+	require.NoError(t, tc.CreateWithCleanup(t.Context(), claim))
+
+	// Wait for Claim to be Ready
+	tc.MustWaitForObject(claim, predicates.ReadyConditionIsTrue)
+
+	// Fetch Sandbox Name from annotation
+	refClaim := &extensionsv1beta1.SandboxClaim{}
+	require.NoError(t, tc.ClusterClient.Get(t.Context(), types.NamespacedName{Namespace: ns.Name, Name: claim.Name}, refClaim))
+	assignedSandboxName := refClaim.Annotations[extensionsv1beta1.AssignedSandboxNameAnnotation]
+	require.NotEmpty(t, assignedSandboxName)
+
+	sandboxObj := &sandboxv1beta1.Sandbox{}
+	require.NoError(t, tc.ClusterClient.Get(t.Context(), types.NamespacedName{Namespace: ns.Name, Name: assignedSandboxName}, sandboxObj))
+
+	// 3. Suspend the Sandbox & Set Wakeup Annotation in one update
+	wakeupTime := time.Now().Add(12 * time.Second)
+	wakeupTimeStr := wakeupTime.Format(time.RFC3339)
+
+	framework.MustUpdateObject(tc.ClusterClient, sandboxObj, func(obj *sandboxv1beta1.Sandbox) {
+		obj.Spec.OperatingMode = sandboxv1beta1.SandboxOperatingModeSuspended
+		if obj.Annotations == nil {
+			obj.Annotations = make(map[string]string)
+		}
+		obj.Annotations["agents.x-k8s.io/next-wakeup"] = wakeupTimeStr
+	})
+
+	t.Logf("Patched sandbox to Suspended, scheduled wakeup for %s", wakeupTimeStr)
+
+	// 4. Assert Pod is Terminated/NotFound
+	tc.MustWaitForObject(sandboxObj, statusNotReadyPredicate{})
+
+	// 5. Wait for the Wakeup Threshold to pass and check for Auto-Resume
+	waitDuration := time.Until(wakeupTime) + (5 * time.Second)
+	t.Logf("Waiting %s for backgroundwakeup scheduler to trigger...", waitDuration)
+	time.Sleep(waitDuration)
+
+	// 6. Verify Sandbox is now automatically Resumed and Ready
+	tc.MustWaitForObject(sandboxObj, predicates.ReadyConditionIsTrue)
+
+	// Verify annotation was cleared
+	refSandbox := &sandboxv1beta1.Sandbox{}
+	require.NoError(t, tc.ClusterClient.Get(t.Context(), types.NamespacedName{Namespace: ns.Name, Name: assignedSandboxName}, refSandbox))
+	_, annotationExists := refSandbox.Annotations["agents.x-k8s.io/next-wakeup"]
+	require.False(t, annotationExists, "next-wakeup annotation should be deleted upon auto-resume")
+}
+
+type statusNotReadyPredicate struct{}
+
+func (statusNotReadyPredicate) Matches(obj client.Object) (bool, error) {
+	sb := obj.(*sandboxv1beta1.Sandbox)
+	for _, cond := range sb.Status.Conditions {
+		if cond.Type == string(sandboxv1beta1.SandboxConditionReady) {
+			return cond.Status == metav1.ConditionFalse, nil
+		}
+	}
+	return false, nil
+}
+
+func (statusNotReadyPredicate) String() string {
+	return "Sandbox status Ready condition is False"
+}
+

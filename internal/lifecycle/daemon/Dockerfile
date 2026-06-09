@@ -1,5 +1,5 @@
 # Build go binaries
-FROM --platform=$BUILDPLATFORM golang:1.26.4 AS builder
+FROM golang:1.26.4 AS builder
 ARG TARGETARCH
 
 WORKDIR /workspace
