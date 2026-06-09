@@ -86,3 +86,18 @@ To achieve a premium developer experience for OpenClaw gateways, we recommend a 
    - This allows real-time client interfaces (like the OpenClaw web UI) to resume instantly without forcing users to log back in or trigger full agent workspace refreshes.
 3. **Sandbox Warm Pools** for rapid allocation:
    - Keep a pool of pre-warmed, generic sandboxes ready for instant leasing when users request new gateways, falling back to a cold-start only when custom environment variables require a rebuild.
+
+---
+
+## Process & Timer State Behavior during Suspension
+
+When planning scheduled tasks (e.g. *"in 4 minutes list my files"*), the type of suspension chosen changes the behavior of active background processes and timers significantly:
+
+| State Type / Component | PVC-Only Suspend (MVP) | GKE Pod Snapshot (CRIU) |
+| :--- | :--- | :--- |
+| **Active bash commands** (e.g., `sleep 240`) | **Killed**. Active shell processes are terminated immediately upon pod eviction. | **Frozen & Resumed**. Process tree and PIDs are frozen and resume execution right where they left off. |
+| **Node.js/Python Timers** (`setTimeout`, `setInterval`) | **Lost**. In-memory event loop is wiped when the container is terminated. | **Preserved**. Event loop state is saved; timers continue from their remaining duration. |
+| **Workspace Code Files & Configs** | **Preserved**. Safely saved to the persistent volume mount (`workspaces-pvc`). | **Preserved**. Safe on GCS/CSI backing snapshots. |
+| **SQLite / File Databases** (`.clawdbot`, `.jsonl` history) | **Preserved**. Automatically saved as files on the persistent volume. | **Preserved**. Backing storage remains consistent. |
+| **Active TCP/WebSocket Connections** | **Disconnected**. Client must reconnect when the new pod boots up. | **Buffered / Restored**. Proxy holds/re-establishes session states. |
+| **Scheduled Tasks / Cron Strategy** | **Requires External wakeup** (using annotation-based pre-wakeup controller to trigger GKE resume). | **Internal sleep continues** upon GKE memory restoration. |
