@@ -81,7 +81,7 @@ To ensure stable code quality and clean reviews, the implementation is broken do
     - Once ready, forward the buffered request and establish TCP streaming to the restored pod.
 
 > [!TIP]
-> **Implementation Alternative (Go Rewrite)**: While the existing `sandbox-router` is written in Python, we should consider implementing/rewriting a Go-based version of the router. This aligns directly with the official repository roadmap (`roadmap.md`: "Support the sandbox-router as a first-class citizen within the project written in Go"), provides better performance and lower resource overhead for request proxying/buffering, and enables sharing client-go informers and controllers packages directly.
+> **Implementation Alignment (Go Router PR #838)**: The Go reimplementation of the sandbox-router has been completed under [PR #838](https://github.com/kubernetes-sigs/agent-sandbox/pull/838) (`clients/go/sandbox-router/`). Therefore, the deliverables for **PR 3 (Wake-on-Traffic Buffering)** should be built as a direct follow-up enhancement on top of PR #838's codebase rather than modifying the Python version. This includes adding the request body buffering middleware and integrating the lifecycle resume trigger client.
 
 ---
 
