@@ -66,6 +66,11 @@ graph TD
 * **Solution**: A structured implementation plan covering lifecycle daemons, typescript hooks, checkpoint triggers, and end-to-end verification.
 * **Detailed Plan**: See [mvp_implementation_plan.md](mvp_implementation_plan.md)
 
+### 8. Massive Scaling of OpenClaw Sandboxes
+* **Problem**: Offloading local SQLite databases to a central database when running 1,000+ parallel sandboxes to optimize costs, storage overhead, and boot latencies.
+* **Solution**: Store SQLite databases (chat history, memories, tasks, crons) in a central Postgres/Spanner DB, running completely diskless sandboxes using Cloud Storage FUSE.
+* **Detailed Plan**: See [massive_scaling_openclaws.md](massive_scaling_openclaws.md)
+
 ## Protocol Buffers (Protobuf) Specifications
 
 To guarantee type-safe, contract-driven interfaces between the **Lightweight Proxy**, **Lifecycle Daemon**, and **OpenClaw custom scaling controllers**, we define the following Protobuf specifications (`agents.proto`):
