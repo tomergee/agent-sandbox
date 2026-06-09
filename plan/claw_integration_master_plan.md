@@ -64,6 +64,9 @@ To ensure stable code quality and clean reviews, the implementation is broken do
     - `GET /v1/sandbox/status`: Checks Pod status and reports whether the sandbox is ready, suspended, or provisioning.
   - **Generic Back-Channel Webhook Interface**: 
     - Queries the agent manager container's health endpoint (e.g. `GET /api/v1/lifecycle/status`) to check if there are running tasks or active WebSocket sessions before suspending.
+  - **Wakeup Scheduler Loop (Scheduled Cron Wakeup)**:
+    - Runs a background goroutine loop checking all suspended sandboxes.
+    - If `agents.x-k8s.io/next-wakeup` annotation exists and its RFC3339 time is reached, patches the sandbox back to `Running` (waking it up) and clears the annotation.
 
 ---
 
