@@ -101,3 +101,30 @@ When planning scheduled tasks (e.g. *"in 4 minutes list my files"*), the type of
 | **SQLite / File Databases** (`.clawdbot`, `.jsonl` history) | **Preserved**. Automatically saved as files on the persistent volume. | **Preserved**. Backing storage remains consistent. |
 | **Active TCP/WebSocket Connections** | **Disconnected**. Client must reconnect when the new pod boots up. | **Buffered / Restored**. Proxy holds/re-establishes session states. |
 | **Scheduled Tasks / Cron Strategy** | **Requires External wakeup** (using annotation-based pre-wakeup controller to trigger GKE resume). | **Internal sleep continues** upon GKE memory restoration. |
+
+---
+
+## State Retention Details (PVC-Only MVP)
+
+### 💾 What Is Saved:
+- **Agent Conversational History**: All chat messages, tokens, and database records (stored as `.jsonl` or SQLite database files under `/root/.openclaw/`).
+- **Workspace Data & Source Files**: Any files, codebases, logs, or directories created or updated by the agent.
+- **On-Disk Configurations**: Config profiles like `openclaw.json` or custom environment variable overrides written to the home/root directory on the PVC.
+
+### ❌ What Is Lost (Killed during Suspend):
+- **Active Shell Commands**: Background scripts (e.g. running `sleep 240`) are immediately terminated when the Pod is deleted.
+- **In-Memory Timers**: Active event-loop timers (`setTimeout` or `setInterval`) are wiped.
+- **WebSocket/TCP Connections**: Open sessions will be severed and clients must reconnect once the Sandbox resumes.
+
+---
+
+## Scheduled Cron Executions during Suspension
+
+Scheduled tasks registered within OpenClaw behave as follows during scale-to-zero suspension:
+
+### 1. Schedule Configuration is Safe
+Since the scheduling configuration is written to the SQLite database on the persistent volume, it is fully preserved during suspension.
+
+### 2. Trigger Executions
+- **Catch-up (Missed Runs)**: If the Sandbox is offline when a cron task was scheduled to fire, it will not execute at that time. However, immediately upon resume, OpenClaw boots, reads the database, detects that the task threshold has passed, and executes the catch-up task.
+- **On-time (Pre-Wakeup Scheduler)**: If we use the pre-wakeup controller, the Sandbox is woken up 2 minutes prior to the next scheduled run. OpenClaw is warm and running by the target time, ensuring the cron execution fires exactly on time.
