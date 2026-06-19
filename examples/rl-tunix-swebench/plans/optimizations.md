@@ -276,6 +276,32 @@ MAX_WARMPOOL_SIZE)`** — driven by tasks-per-image, capped by the flat cap.
   expose per-session isolation through the agent-sandbox claim model (1 claim →
   N sessions).
 
+### 10.1. Process-isolation tier (bubblewrap / nsjail)
+- **Idea:** a middle isolation tier for #10's executors-per-pod — stronger than
+  worktrees, far lighter than nested VMs (#10.2). Run each executor under a
+  lightweight sandboxer using **Linux namespaces + seccomp + cgroups/rlimits**.
+- **Tools:** **bubblewrap** (`bwrap`, unprivileged, used by Flatpak), **nsjail**
+  (Google; adds rlimits/cgroups), firejail. (Not a restricted shell like `rbash`
+  — that's a convenience boundary, not isolation.)
+- **What each executor gets:** mount confinement (own `/testbed` worktree, RO
+  base, private `/tmp` `/proc` — real fs-escape block, not convention); PID/IPC
+  ns (no sibling visibility/signals); seccomp syscall filter; per-executor
+  CPU/mem/fd caps (also fixes in-pod contention).
+- **Isolation level:** shared-host-kernel. worktree < **bwrap/nsjail** < gVisor <
+  Kata/Firecracker. Raises the bar a lot, but a **kernel exploit still escapes** →
+  not sufficient alone for hostile code.
+- **Catches:** needs **unprivileged user namespaces** (or `CAP_SYS_ADMIN`) in the
+  pod securityContext — default k8s seccomp/AppArmor / restricted PSS often block
+  `clone(CLONE_NEWUSER)`, so you must relax it (trades host isolation). **Does not
+  stack on gVisor** cleanly (runsc nested-userns limits) — it's an *alternative*
+  to gVisor, not a layer on it.
+- **Upside vs #10.2:** makes "router-to-inside" *easier* — executors stay normal
+  processes (shared netns), reachable via the normal exec path, no inner-VM
+  network demux. Flip side: shared netns = weaker per-session network isolation.
+- **Impact:** Medium/High for *trusted-ish* eval at density (defense-in-depth,
+  cheap). **Effort:** Medium.
+- **Status:** idea (recorded). Tier between #10 (logical) and #10.2 (microVM).
+
 ### 10.2. Secure in-pod multi-tenancy via nested isolation
 - **Idea:** keep #10's density (multiple executors per pod) but replace its weak
   *logical* isolation (worktrees) with **hardware/container-level isolation per
