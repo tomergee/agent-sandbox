@@ -195,6 +195,53 @@ the outputs from a real run (two `astropy` tasks) so you can see expected
 results before running it yourself. Run it with the example directory as the
 working directory so `import strategies, warmpool` resolves.
 
+### Option D — End-to-end bash test (`e2e_test.sh`)
+
+A self-contained smoke/perf test that walks the whole flow with `kubectl` only
+(no Python/SDK) — pick a strategy and task count from a menu, then it provisions
+the warm pools, claims a sandbox per task, execs inside it, **prints every
+created object** (`SandboxTemplate`/`SandboxWarmPool`/`SandboxClaim`/`Sandbox`/
+`Pod`), tears everything down, and reports **per-phase benchmark timers plus the
+total end-to-end time**. Requires `kubectl`, `curl`, and **`jq`**.
+
+```bash
+./e2e_test.sh                          # interactive menu (strategy, #tasks)
+./e2e_test.sh -s naive -n 2 -y         # non-interactive
+STRATEGY=sliding TASKS=3 WINDOW_SIZE=1 \
+  NODE_SELECTOR_KEY=cloud.google.com/gke-nodepool NODE_SELECTOR_VAL=standard-pool \
+  ./e2e_test.sh -y
+```
+
+It fetches real task images from the dataset (HF datasets-server REST API),
+labels everything `app=rl-tunix-e2e`, and an EXIT trap cleans up even on
+Ctrl-C (use `--no-cleanup` to keep objects for inspection). Sample tail:
+
+```text
+▶ Created objects in namespace rl-tunix-swebench
+  --- SandboxTemplates / SandboxWarmPools ---
+  sandboxtemplate.../r2e-img-a8d0235275f3      ...
+  sandboxwarmpool.../pool-r2e-img-a8d0235275f3   READY 1
+  --- SandboxClaims ---
+  e2e-claim-1-17857   ...
+  --- Sandboxes / Pods ---
+  pod/pool-r2e-img-a8d0235275f3-qlcq4   1/1   Running   ...
+
+── Benchmark (strategy=none, tasks=1) ───────────────
+  preflight              1.9s
+  fetch tasks            4.1s
+  create namespace       1.0s
+  provision pools        4.1s
+  wait warm (pull)       1.1s
+  claim sandboxes        4.1s
+  exec probes            2.6s
+  teardown               5.0s
+  ──────────────────────────────────────────
+  TOTAL e2e             30.9s
+```
+
+(The `wait warm (pull)` phase dominates the first run while the multi-GB image
+is pulled; it drops to ~1s once images are node-cached.)
+
 ## Configuration
 
 | Env var | Default | Description |
