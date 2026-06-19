@@ -112,6 +112,22 @@ MAX_WARMPOOL_SIZE)`** — driven by tasks-per-image, capped by the flat cap.
 - **Open:** init containers pull sequentially per node; disk ceiling ~80×1.2 GB
   on 100 GB nodes → pre-pull batch families only. Future: GKE Image Streaming /
   secondary boot disk (opts to compare).
+- **When the DaemonSet is / isn't the right tool (honest assessment):**
+  - *Bought us:* (a) the measurements (81s→6s) and the **layer-sharing** finding
+    that reframed #9; (b) a **placement-agnostic + scale-up guarantee** — caches
+    on every node incl. newly autoscaled ones, so a warm pod lands hot wherever
+    the scheduler puts it. This is its one structural edge over on-demand pull.
+  - *Didn't help:* single/few tasks ≈ **break-even** (pulls on all nodes to serve
+    a 1-node task; cost just shifts from claim path to prepull step); **over-pulls**
+    vs. a low-replica pool's actual node spread; and it's the **wrong tool for
+    "all images"** (the #9 disk conundrum).
+  - *Right sweet spot:* a **small hot working set you want instant regardless of
+    placement and across scale-up** = the **sliding window's active images**, not
+    the whole dataset. ⇒ keep it but scope it to the window (#9); for full-dataset
+    runs prefer Image Streaming / node partitioning.
+  - *Bottom line:* measured single-run win was marginal; value is **structural +
+    diagnostic**, and only pays off feeding **many** claims spread across nodes
+    (needs the concurrency/parallel-exec context, #2/#3).
 
 ### 2. Proportional / concurrency-aware pool sizing — IMPLEMENTED
 - **Why:** the baseline `replicas = min(tasks_image, MAX_WARMPOOL_SIZE)` ignores
@@ -196,6 +212,34 @@ MAX_WARMPOOL_SIZE)`** — driven by tasks-per-image, capped by the flat cap.
 - **Impact:** Security (note: gVisor adds some runtime overhead).
 - **Effort:** Medium (infra).
 - **Status:** supported via env, not enabled on the current cluster.
+
+### 9. Working-set pre-pull for massive runs (disk-bounded)
+- **Conundrum:** for a run over *all* images, "pre-pull every image on every
+  node" (current `prepull.sh`) cannot fit — 500 verified × ~1.2 GB ≈ 600 GB vs
+  ~100 GB node disk (worse for R2E-Gym/SWE-smith's thousands).
+- **Reframe:** a node only needs images for pods scheduled **on it**, so the unit
+  is a **per-node working set**, not the whole batch. And node disk = **sum of
+  unique layers** (family base stored once + thin per-instance diffs), not Σ full
+  image sizes — so the ~12 family bases dominate, not the 500 tags.
+- **How:**
+  1. **Pre-pull follows the sliding window**, not the batch: pull only the active
+     window's images; as it slides, pull the next and let finished ones go.
+     (Evolve `prepull.sh` to take the window, not a fixed list.)
+  2. **Lean on kubelet image GC:** unused images are LRU-evicted past the disk
+     high-threshold (~85% on GKE); a live warm pool pins its image, a torn-down
+     pool's image becomes evictable. Window-follow + GC = self-managing cache.
+  3. **Working-set constraint:** `window × (family_base + diffs) ≲ node_disk ×
+     gc_low_threshold` — bounds window width (ties to the concurrency/sizing
+     budget, #2).
+- **Scale answers (compare later):** **GKE Image Streaming (gcfs)** — lazy
+  layer streaming + bounded cache, removes the "fit everything" problem entirely;
+  **node partitioning by repo family** (nodeSelector/affinity per template) so
+  each node holds a few families; **secondary boot disk** baking family bases.
+- **Impact:** required for full-dataset runs (otherwise disk is the hard gate).
+- **Effort:** Medium (window-follow prepull) / Medium-High (streaming, partitioning).
+- **Status:** idea (recorded). Depends on / extends #1 (pre-pull) and #2 (sizing).
+- **Open:** measure real per-node unique-layer footprint per family; pick window
+  width from disk budget; evaluate Image Streaming vs DaemonSet pre-pull.
 
 ---
 
