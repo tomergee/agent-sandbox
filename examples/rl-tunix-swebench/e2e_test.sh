@@ -113,6 +113,19 @@ add_ms() { eval "$1=\$(( \${$1:-0} + $2 ))"; }   # $1 phase var, $2 delta ms
 
 SCRIPT_START=$(now_ms)
 TASKS_DONE=0
+TOTAL_CLAIMS=0          # SandboxClaims started (counted in parent shell)
+WARM_REPLICAS_TOTAL=0   # cumulative warm-pool replicas provisioned over the run
+ACTIVE_REPLICAS=0       # currently-warm replicas
+PEAK_REPLICAS=0         # max concurrent warm replicas (footprint differentiator)
+POOL_NAMES=(); POOL_REPS=()   # pool -> reps map (bash 3.2: parallel arrays)
+map_set_reps() { POOL_NAMES+=("$1"); POOL_REPS+=("$2"); }
+map_get_reps() {
+  local i
+  for i in "${!POOL_NAMES[@]}"; do
+    [ "${POOL_NAMES[$i]}" = "$1" ] && { echo "${POOL_REPS[$i]}"; return; }
+  done
+  echo 0
+}
 
 # --------------------------------------------------------------------------- #
 # kubectl convenience
@@ -279,6 +292,7 @@ run_task_on_pool() {  # $1 pool  $2 task-label
   local pool="$1" label="$2" t0 claim sb pod out
   t0=$(now_ms)
   claim=$(claim_sandbox "$pool")
+  TOTAL_CLAIMS=$(( TOTAL_CLAIMS + 1 ))
   sb=$(resolve_sandbox "$claim")
   wait_sandbox_ready "$sb"
   add_ms T_CLAIM $(( $(now_ms) - t0 ))
@@ -297,6 +311,10 @@ provision_pool() {  # $1 image  $2 replicas  (side effect only; accumulates PROV
   tn=$(template_name "$img"); pool=$(pool_name "$tn")
   t0=$(now_ms); apply_template "$img" "$tn"; apply_warmpool "$pool" "$tn" "$reps"; add_ms T_PROVISION $(( $(now_ms) - t0 ))
   t0=$(now_ms); wait_pool_ready "$pool" "$reps"; add_ms T_WAITREADY $(( $(now_ms) - t0 ))
+  map_set_reps "$pool" "$reps"
+  WARM_REPLICAS_TOTAL=$(( WARM_REPLICAS_TOTAL + reps ))
+  ACTIVE_REPLICAS=$(( ACTIVE_REPLICAS + reps ))
+  if [ "$ACTIVE_REPLICAS" -gt "$PEAK_REPLICAS" ]; then PEAK_REPLICAS=$ACTIVE_REPLICAS; fi
 }
 
 teardown_pool() {  # $1 image
@@ -306,6 +324,8 @@ teardown_pool() {  # $1 image
   kc delete sandboxwarmpool "$pool" --ignore-not-found --wait=false >/dev/null 2>&1 || true
   kc delete sandboxtemplate "$tn" --ignore-not-found --wait=false >/dev/null 2>&1 || true
   add_ms T_TEARDOWN $(( $(now_ms) - t0 ))
+  ACTIVE_REPLICAS=$(( ACTIVE_REPLICAS - $(map_get_reps "$pool") ))
+  if [ "$ACTIVE_REPLICAS" -lt 0 ]; then ACTIVE_REPLICAS=0; fi
 }
 
 # --------------------------------------------------------------------------- #
@@ -494,6 +514,10 @@ report() {
   printf "  %-22s %8ss\n" "teardown"           "$(fmt_s $T_TEARDOWN)"
   echo   "  ──────────────────────────────────────────"
   printf "  %-22s %8ss\n" "${C_B}TOTAL e2e${C_0}" "$(fmt_s $total)"
+  echo   "  ──────────────────────────────────────────"
+  printf "  %-22s %8d\n" "SandboxClaims started" "$TOTAL_CLAIMS"
+  printf "  %-22s %8d\n" "warm replicas (total)" "$WARM_REPLICAS_TOTAL"
+  printf "  %-22s %8d\n" "warm replicas (peak)"  "$PEAK_REPLICAS"
 }
 
 # --------------------------------------------------------------------------- #

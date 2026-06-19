@@ -138,6 +138,25 @@ at a fraction of the warm footprint. The serial ceiling is now provision +
 teardown + exec (kubectl-bound), addressable by proxy-POST creates and opt #3
 (parallel exec) — *not* warm-pool strategy.
 
+### Footprint: SandboxClaims + warm replicas (10 tasks, 2026-06-19)
+
+`e2e_test.sh` now reports these counters. 10 astropy tasks (1:1 image:task), so
+each strategy starts 10 claims and provisions 10 warm replicas total; the
+**peak** concurrent warm replicas is the real differentiator.
+
+| Strategy | TOTAL | SandboxClaims started | warm replicas (total) | warm replicas (peak) |
+| :--- | --: | --: | --: | --: |
+| none    | 142.69 | 10 | 10 | **1** |
+| naive   | 112.03 | 10 | 10 | **10** |
+| sliding | 111.99 | 10 | 10 | **2** |
+
+**Reading it:** all three do the same *work* (10 claims, 10 warm pods over the
+run); they differ only in **peak idle footprint** — `none` keeps 1 warm at a time
+(slowest), `naive` keeps all 10 (fastest, highest reservation), `sliding` keeps
+~`window` (=2) for ≈naive speed at a fraction of the footprint. Peak scales with
+strategy, not task count: for a fixed `MAX_CONCURRENT`, `naive` peak grows with
+the number of unique images while `sliding` stays ≈ window.
+
 ### Pre-pull (opt #1) — findings
 
 DaemonSet pre-pull (`prepull.sh`) vs cold, measured on fresh `django` images
