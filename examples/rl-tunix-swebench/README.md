@@ -301,8 +301,9 @@ is pulled; it drops to ~1s once images are node-cached.)
 | Env var | Default | Description |
 | :--- | :--- | :--- |
 | `WARMPOOL_STRATEGY` | `naive` | `none`, `naive`, or `sliding`. |
-| `WARMPOOL_WINDOW_SIZE` | `2` | (sliding) unique images kept warm concurrently. |
-| `MAX_WARMPOOL_SIZE` | `8` | Cap on replicas per image pool. |
+| `WARMPOOL_WINDOW_SIZE` | `0` | (sliding) unique images kept warm; `0` = auto-pick so the warm footprint ≈ `MAX_CONCURRENT`. |
+| `MAX_WARMPOOL_SIZE` | `8` | Hard cap on replicas per image pool. |
+| `MAX_CONCURRENT` | `1` | Concurrency budget used to size pool replicas (see `sizing.py`); raise with parallel execution. |
 | `TASKS_LIMIT` | `1` | Number of tasks from the dataset (`0` = all). |
 | `DATASET_NAME` | `R2E-Gym/SWE-Bench-Verified` | HF dataset with a `docker_image` column. |
 | `DATASET_SPLIT` | `test` | Dataset split. |

@@ -28,6 +28,7 @@ import collections
 import logging
 from typing import Callable
 
+import sizing
 import warmpool as wp
 
 logger = logging.getLogger("rl-tunix-swebench.strategies")
@@ -119,17 +120,21 @@ def run_naive(
     process: ProcessFn,
     *,
     max_warmpool_size: int = 32,
+    max_concurrent: int = 1,
 ) -> None:
   """Naive parallel: pre-warm a pool for *every* unique image up front.
 
   Fastest per-task startup, highest idle resource reservation. Best for small
-  batches or when cluster capacity is ample.
+  batches or when cluster capacity is ample. Per-image depth is sized to the
+  image's share of ``max_concurrent`` (see ``sizing.compute_replicas``).
   """
   counts = _image_counts(entries)
+  total = sum(counts.values())
   provisioned = set()
   try:
     for image, count in counts.items():
-      replicas = min(count, max_warmpool_size)
+      replicas = sizing.compute_replicas(
+          count, total, max_concurrent, max_warmpool_size)
       logger.info("[naive] pre-warming %s (replicas=%d)", image, replicas)
       mgr.provision(image, replicas=replicas)
       provisioned.add(image)
@@ -148,8 +153,9 @@ def run_sliding(
     mgr: WarmPoolManager,
     process: ProcessFn,
     *,
-    window_size: int = 2,
+    window_size: int | None = None,
     max_warmpool_size: int = 32,
+    max_concurrent: int = 1,
 ) -> None:
   """Sliding window: keep pools warm for only ``window_size`` images at a time.
 
@@ -157,17 +163,27 @@ def run_sliding(
   warm-pool reuse. As each image's tasks finish, its pool is torn down and the
   next image in line is pre-warmed. Balances startup latency against idle cost
   for large, image-diverse batches.
+
+  ``window_size=None`` (default) auto-picks the window so the total warm
+  footprint stays ~ ``max_concurrent`` (see ``sizing.recommend_window``).
+  Per-image depth is sized by ``sizing.compute_replicas``.
   """
   entries = sorted(entries, key=lambda e: e["docker_image"])
   counts = _image_counts(entries)
+  total = sum(counts.values())
   images = list(counts.keys())
+  if window_size is None:
+    window_size = sizing.recommend_window(counts, max_concurrent, max_warmpool_size)
+    logger.info("[sliding] auto window_size=%d (max_concurrent=%d)",
+                window_size, max_concurrent)
   finished = {img: 0 for img in images}
   active = set()
   next_idx = 0
 
   def warm(idx: int):
     image = images[idx]
-    replicas = min(counts[image], max_warmpool_size)
+    replicas = sizing.compute_replicas(
+        counts[image], total, max_concurrent, max_warmpool_size)
     logger.info("[sliding] pre-warming %s (replicas=%d)", image, replicas)
     mgr.provision(image, replicas=replicas)
     active.add(image)

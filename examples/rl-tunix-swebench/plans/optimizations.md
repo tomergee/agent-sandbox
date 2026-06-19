@@ -59,6 +59,35 @@ images; 500 tasks → 500 unique images. So `tasks_image = 1` for every image.
 `replicas=1` and a window ≈ `MAX_CONCURRENT`; reserve `replicas>1` for
 pass@k / RL runs.
 
+### When/how tunix actually decomposes it (`eval_deepswe.py`)
+
+Both decisions are **precomputed from the static dataset, up front — before any
+task runs** (nothing is discovered at runtime):
+
+1. **What images** — at *module load* (lines ~188–196), right after
+   `load_dataset`: filter to rows with `docker_image`, slice by `TASKS_LIMIT`,
+   then `unique_images = set(e["docker_image"] for e in entries)`.
+2. **How many replicas** — at the *start of `run_evaluation()`* (lines ~688–711):
+   `image_totals = Counter(e["docker_image"] for e in entries)`, then per image
+   `size = min(count, MAX_WARMPOOL_SIZE)`. `naive` sizes all pools up front;
+   `sliding` applies the same `image_totals` incrementally as the window rolls
+   (lines ~790–804).
+
+So the replica rule today is **`replicas_image = min(tasks_for_that_image,
+MAX_WARMPOOL_SIZE)`** — driven by tasks-per-image, capped by the flat cap.
+
+**Gaps in this rule (→ optimization #2):**
+- For verified (1:1) every `count == 1` ⇒ every pool is `replicas=1`;
+  `MAX_WARMPOOL_SIZE` never bites. Per-image replicas only exceed 1 when an image
+  repeats (pass@k / RL group sampling / image-reusing datasets, where the same
+  instance appears as multiple `entries`).
+- **Not concurrency-aware:** sizing uses *total* tasks-per-image, not in-flight
+  concurrency. An image with 50 tasks and `MAX_WARMPOOL_SIZE=32` pre-warms 32
+  idle pods even if only 8 run at once. The fix is to size to
+  `min(concurrent_demand, MAX_CONCURRENT × tasks_image/tasks_total)` instead of
+  raw `count`. Timing of the decomposition is fine; the **sizing formula** is the
+  thing to improve.
+
 ## Idea backlog
 
 > Template per idea: **Why / How / Impact / Effort / Status / Open questions**
@@ -84,14 +113,29 @@ pass@k / RL runs.
   on 100 GB nodes → pre-pull batch families only. Future: GKE Image Streaming /
   secondary boot disk (opts to compare).
 
-### 2. Proportional pool sizing
-- **Why:** flat `MAX_WARMPOOL_SIZE` over- or under-provisions per image.
-- **How:** size each pool to its share of the batch:
-  `replicas_image ≈ GlobalConcurrency × tasks_image / tasks_total`, capped.
-  (Design doc §5.2.)
-- **Impact:** Medium (less idle reservation, fewer cold claims).
-- **Effort:** Low.
-- **Status:** idea.
+### 2. Proportional / concurrency-aware pool sizing — IMPLEMENTED
+- **Why:** the baseline `replicas = min(tasks_image, MAX_WARMPOOL_SIZE)` ignores
+  concurrency and pre-warms one pod per *task* → many idle sandboxes; and has no
+  global budget.
+- **How (`sizing.py`):**
+  `replicas_image = clamp(round(MAX_CONCURRENT × tasks_image / tasks_total),
+  1, min(tasks_image, MAX_WARMPOOL_SIZE))` — depth = the image's share of the
+  concurrency budget. Plus `recommend_window()` so `sliding`'s total warm
+  footprint ≈ `MAX_CONCURRENT`. Wired into `strategies.py`, `run_swebench.py`
+  (`MAX_CONCURRENT` env; `WARMPOOL_WINDOW_SIZE=0` ⇒ auto window) and `e2e_test.sh`
+  (`compute_replicas`).
+- **Demonstrated (`python sizing.py`):** skewed 8-image batch (100 tasks, cap 32)
+  — baseline pre-warms **92 idle pods**; improved footprint is **8 / 11 / 32 / 92**
+  at `MAX_CONCURRENT = 1 / 8 / 32 / 256`. Verified (1:1) stays 1 per image, but
+  `sliding` window auto-scales 1→8 with the budget.
+- **Coupling:** the budget that makes this real is execution concurrency, so it
+  pairs with opt #3 (parallel exec). Default `MAX_CONCURRENT=1` (serial) keeps it
+  correct today; raise it with #3.
+- **Impact:** High for image-repeating / high-concurrency runs; correctness-safe
+  for verified.
+- **Effort:** Done (Low).
+- **Status:** implemented (`sizing.py`), self-demo included; cluster-measure the
+  footprint reduction once #3 lands.
 
 ### 3. Parallel task execution
 - **Why:** the driver and `e2e_test.sh` currently claim+exec **serially**;

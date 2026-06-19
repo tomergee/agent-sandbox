@@ -55,8 +55,11 @@ DATASET_NAME = os.getenv("DATASET_NAME", "R2E-Gym/SWE-Bench-Verified")
 DATASET_SPLIT = os.getenv("DATASET_SPLIT", "test")
 TASKS_LIMIT = int(os.getenv("TASKS_LIMIT", "1"))
 WARMPOOL_STRATEGY = os.getenv("WARMPOOL_STRATEGY", "naive")  # none|naive|sliding
-WARMPOOL_WINDOW_SIZE = int(os.getenv("WARMPOOL_WINDOW_SIZE", "2"))
+WARMPOOL_WINDOW_SIZE = int(os.getenv("WARMPOOL_WINDOW_SIZE", "0"))  # 0 = auto
 MAX_WARMPOOL_SIZE = int(os.getenv("MAX_WARMPOOL_SIZE", "8"))
+# Global concurrency budget used to size warm pools (see sizing.py). Keep at 1
+# while tasks run serially; raise it together with parallel execution.
+MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT", "1"))
 NAMESPACE = os.getenv("NAMESPACE", "rl-tunix-swebench")
 SANDBOX_READY_TIMEOUT = int(os.getenv("SANDBOX_READY_TIMEOUT", "900"))
 
@@ -147,9 +150,12 @@ def main():
   if WARMPOOL_STRATEGY == "none":
     strategy(entries, mgr, process)
   elif WARMPOOL_STRATEGY == "naive":
-    strategy(entries, mgr, process, max_warmpool_size=MAX_WARMPOOL_SIZE)
+    strategy(entries, mgr, process, max_warmpool_size=MAX_WARMPOOL_SIZE,
+             max_concurrent=MAX_CONCURRENT)
   else:  # sliding
-    strategy(entries, mgr, process, window_size=WARMPOOL_WINDOW_SIZE,
+    window = WARMPOOL_WINDOW_SIZE if WARMPOOL_WINDOW_SIZE > 0 else None
+    strategy(entries, mgr, process, window_size=window,
+             max_concurrent=MAX_CONCURRENT,
              max_warmpool_size=MAX_WARMPOOL_SIZE)
 
   print(json.dumps({"strategy": WARMPOOL_STRATEGY, "results": results}, indent=2))

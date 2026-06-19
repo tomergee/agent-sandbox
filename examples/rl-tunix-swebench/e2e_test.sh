@@ -38,6 +38,7 @@ STRATEGY="${STRATEGY:-}"
 TASKS="${TASKS:-}"
 WINDOW_SIZE="${WINDOW_SIZE:-2}"
 MAX_WARMPOOL_SIZE="${MAX_WARMPOOL_SIZE:-8}"
+MAX_CONCURRENT="${MAX_CONCURRENT:-1}"   # concurrency budget used to size pools
 NAMESPACE="${NAMESPACE:-rl-tunix-swebench}"
 DATASET="${DATASET:-R2E-Gym/SWE-Bench-Verified}"
 DATASET_SPLIT="${DATASET_SPLIT:-test}"
@@ -125,6 +126,19 @@ template_name() {
   echo "r2e-img-$h"
 }
 pool_name() { echo "pool-$1"; }
+
+# Warm-pool replica sizing (mirrors sizing.py): size each image's pool to its
+# share of the concurrency budget, >=1, never more than its task count or cap.
+#   compute_replicas <tasks_image> <tasks_total> <max_concurrent> <max_pool>
+compute_replicas() {
+  awk -v ti="$1" -v tt="$2" -v mc="$3" -v mp="$4" 'BEGIN{
+    if (ti<=0){print 0; exit}
+    if (tt<=0) tt=ti
+    s=mc*ti/tt; r=int(s+0.5); if (r<1) r=1
+    if (r>ti) r=ti; if (r>mp) r=mp
+    print r
+  }'
+}
 
 # --------------------------------------------------------------------------- #
 # Resource builders
@@ -379,7 +393,7 @@ strategy_naive() {
   build_unique
   local n=${#U[@]} i img reps
   for (( i=0; i<n; i++ )); do
-    img="${U[$i]}"; reps=${CNT[$i]}; [ "$reps" -gt "$MAX_WARMPOOL_SIZE" ] && reps=$MAX_WARMPOOL_SIZE
+    img="${U[$i]}"; reps=$(compute_replicas "${CNT[$i]}" "${#IMAGES[@]}" "$MAX_CONCURRENT" "$MAX_WARMPOOL_SIZE")
     info "pre-warming ${img} (replicas=${reps})"
     provision_pool "$img" "$reps"
   done
@@ -399,7 +413,7 @@ strategy_sliding() {
   # Pre-warm the first WINDOW_SIZE images.
   local w=$WINDOW_SIZE; [ "$w" -gt "$n" ] && w=$n
   for (( i=0; i<w; i++ )); do
-    img="${U[$i]}"; reps=${CNT[$i]}; [ "$reps" -gt "$MAX_WARMPOOL_SIZE" ] && reps=$MAX_WARMPOOL_SIZE
+    img="${U[$i]}"; reps=$(compute_replicas "${CNT[$i]}" "${#IMAGES[@]}" "$MAX_CONCURRENT" "$MAX_WARMPOOL_SIZE")
     info "pre-warming window slot $(( i + 1 )): ${img} (replicas=${reps})"
     provision_pool "$img" "$reps"
   done
@@ -415,7 +429,7 @@ strategy_sliding() {
     # Slide: pre-warm the next out-of-window image.
     if [ "$next" -lt "$n" ]; then
       local nimg nreps
-      nimg="${U[$next]}"; nreps=${CNT[$next]}; [ "$nreps" -gt "$MAX_WARMPOOL_SIZE" ] && nreps=$MAX_WARMPOOL_SIZE
+      nimg="${U[$next]}"; nreps=$(compute_replicas "${CNT[$next]}" "${#IMAGES[@]}" "$MAX_CONCURRENT" "$MAX_WARMPOOL_SIZE")
       info "sliding window → pre-warming ${nimg} (replicas=${nreps})"
       provision_pool "$nimg" "$nreps"
       next=$(( next + 1 ))
