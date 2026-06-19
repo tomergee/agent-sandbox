@@ -63,6 +63,42 @@ tear=teardown.
 | 2026-06-18 | e2e_test.sh | naive | 1 | –/1 | cold, same family | partial | 3.8 | **11.0** | 3.9 | 2.7 | 5.0 | **38.3** | astropy-13236; base layers already cached (astropy) |
 | 2026-06-18 | e2e_test.sh | naive | 1 | –/1 | **cold, fresh family** | no | 3.8 | **80.9** | 3.9 | 2.7 | 4.9 | **108.2** | django-10097; true cold pull (~1.2 GB) |
 | 2026-06-18 | e2e_test.sh | naive | 1 | –/1 | **pre-pull (#1)** | pre-pulled | 3.7 | **6.0** | 3.7 | 2.6 | 4.9 | **34.0** | django-11095; warm phase = pod start only, pull done by DaemonSet |
+| 2026-06-19 | e2e_test.sh | none | 10 | –/1 | strategy compare | astropy (base cached) | 37.8 | 89.2 | 37.5 | 26.6 | 24.0 | **260.0** | 10 astropy tasks; pool re-provisioned per task |
+| 2026-06-19 | e2e_test.sh | naive | 10 | –/1 | strategy compare | astropy (base cached) | 38.8 | 49.8 | 37.6 | 26.1 | 23.8 | **193.8** | 10 pools pre-warmed up front (replicas=1, MAX_CONCURRENT=1) |
+| 2026-06-19 | e2e_test.sh | sliding | 10 | 2/8 | strategy compare | astropy (base cached) | 37.2 | 49.5 | 38.2 | 26.0 | 23.8 | **189.6** | window 2; rolls through 10 images |
+
+### 10-task strategy comparison (2026-06-19)
+
+Same 10 astropy tasks (offset 0; family base already node-cached), serial
+execution (`MAX_CONCURRENT=1`), 3×e2-standard-2.
+
+| Strategy | provision | wait warm | claim | exec | teardown | **TOTAL** |
+| :--- | --: | --: | --: | --: | --: | --: |
+| none    | 37.8 | **89.2** | 37.5 | 26.6 | 24.0 | **260.0** |
+| naive   | 38.8 | 49.8 | 37.6 | 26.1 | 23.8 | **193.8** |
+| sliding | 37.2 | 49.5 | 38.2 | 26.0 | 23.8 | **189.6** |
+
+**Findings:**
+1. **sliding ≈ naive (~190s) << none (260s).** The differentiator is **wait
+   warm**: `none` re-provisions a fresh pool *per task* and serially pays warm-up
+   each time (89.2s); naive/sliding amortize it (~49.5s). ⇒ for repeated work,
+   any pre-warming beats on-demand.
+2. **sliding matches naive here at a fraction of the footprint** — naive held 10
+   pools; sliding held ~2. With this family (cheap warms) the latency is the
+   same, so sliding is strictly better (same speed, far less idle).
+3. **claim/exec/teardown (~37/26/24s) are flat across strategies** — they scale
+   ~linearly with the 10 tasks because execution is **serial**. This is the
+   ceiling that opt #3 (parallel exec) would cut; warm-pool strategy can't help
+   the per-task claim+exec path.
+4. All tasks same family (astropy) → base cached → warms are thin-diff (~5s
+   each). A cross-family 10-task run would show much larger `wait warm` for
+   `none` (one cold base per fresh family) — where pre-pull (#1) + sizing matter
+   more.
+
+> Caveat: the e2e releases claims only at final cleanup (not per task), so within
+> a run claimed sandboxes accumulate — fine at this scale, but inflates resident
+> pods for large serial runs (the Python driver releases per task via
+> `sandbox.terminate()`).
 
 ### Pre-pull (opt #1) — findings
 
