@@ -241,6 +241,136 @@ MAX_WARMPOOL_SIZE)`** — driven by tasks-per-image, capped by the flat cap.
 - **Open:** measure real per-node unique-layer footprint per family; pick window
   width from disk budget; evaluate Image Streaming vs DaemonSet pre-pull.
 
+### 10. In-pod multi-tenancy — multiple executors per pod
+- **Source:** AI21 "Scaling Agentic Evaluation" (200k+ SWE-bench runs). Their 10×
+  lever is "multiple executors per pod": ~500 pods (one per instance) provisioned
+  *once* and reused across dozens of runs, with trajectories isolated *logically*
+  inside the pod (session-aware MCP server), not physically.
+- **Why it's big here:** decouples **pods from concurrency** —
+  `pods_needed = ceil(concurrency / executors_per_pod)`. One warm sandbox per
+  image can serve G concurrent trajectories ⇒ **1 image resident per instance,
+  not G** → directly shrinks the resident-image footprint (solves the #9 disk
+  conundrum), amortizes per-instance setup (checkout/deps/server), and raises
+  density. This is the concurrent-isolation answer to #4 (which I'd deprioritized
+  for sequential-reset).
+- **How to isolate sessions in one pod (no interference):**
+  - **Repo:** `git worktree add --detach /work/<sid> <base_commit>` per session —
+    own working tree, shared `.git` objects (cheap); edits + test caches stay in
+    the worktree.
+  - **Env:** per-session `HOME`, `TMPDIR`, `XDG_*` → `/work/<sid>/…`.
+  - **Deps:** rely on read-mostly shared site-packages; per-session venv overlay
+    only if a task mutates the env.
+  - **Servers/ports/DBs:** per-session instances on distinct ports/sockets, or a
+    **session-aware server** (AI21's MCP extension).
+  - Executor = a `kubectl exec` session with CWD+HOME pinned to its worktree.
+- **Trade-offs (honest):** logical isolation ≠ security isolation — untrusted
+  RL-generated code can reach sibling worktrees / shared deps, so this is weaker
+  than one-sandbox-per-trajectory + gVisor. Best for *trusted-ish eval at scale*;
+  keep per-trajectory sandboxes where hard isolation matters. Also: blast radius
+  (one pod crash kills G sessions) and in-pod CPU/mem contention (cap
+  `executors_per_pod`).
+- **Impact:** High at scale (density + disk). **Effort:** High (session manager,
+  worktree lifecycle, optional session-aware server).
+- **Status:** idea (recorded). Interacts with #2 (sizing), #4 (reuse), #9 (disk).
+- **Open:** worktree/overlay behavior under gVisor; deps-mutation cases; how to
+  expose per-session isolation through the agent-sandbox claim model (1 claim →
+  N sessions).
+
+### 10.2. Secure in-pod multi-tenancy via nested isolation
+- **Idea:** keep #10's density (multiple executors per pod) but replace its weak
+  *logical* isolation (worktrees) with **hardware/container-level isolation per
+  executor** — so it's safe even for untrusted RL-generated code. Each executor
+  runs in its own nested boundary inside the outer Sandbox pod.
+- **Isolation options (weak → strong):**
+  - **Docker-in-Docker (DinD):** outer pod runs a daemon; each executor = an inner
+    container (namespace/cgroup isolation). Needs a privileged outer pod →
+    weakens the host boundary; cheapest.
+  - **Nested Kata / Firecracker microVMs:** each executor in its own lightweight
+    VM (hardware-virt isolation). Strongest. agent-sandbox already demonstrates
+    Kata: `examples/kata-gke-sandbox` (`runtimeClassName: kata-qemu`,
+    kata-deploy) and `examples/vscode-sandbox/overlays/{kata,kata-mshv}`.
+    Firecracker is available as a Kata hypervisor backend (`kata-fc`).
+- **Why:** combines #10's pod/disk/density win (1 image-resident per instance,
+  N executors) with **per-executor hard isolation** — removes #10's main
+  caveat. Also reduces blast radius (an inner crash is contained; only the outer
+  pod failing kills all).
+- **The thing to solve — "router to the inside":** the agent-sandbox SDK/router
+  addresses the *outer* Sandbox (one pod, one network identity), but each inner
+  microVM/container has its own netns. We need to **route external per-session
+  traffic → outer pod → the specific inner executor**: a session-aware
+  demux/proxy inside the outer pod (session-id → inner VM endpoint), or extend
+  the router with inner-endpoint registration. (AI21 solved the *logical* version
+  at the MCP layer; here it's a real *network* routing problem.)
+- **Requirements/caveats:** nested virtualization for Kata-in-pod (KVM / nested
+  virt; GKE Sandbox-capable nodes / machine types); DinD privileged trade-off;
+  per-microVM CPU/mem overhead (cap executors/pod); still one outer-pod blast
+  radius.
+- **Impact:** High — secure multi-tenancy at density (best of #10 + strong
+  isolation). **Effort:** High (nesting setup + router-to-inside).
+- **Status:** idea (recorded). Variant of #10; builds on the Kata examples;
+  the open piece is router-to-inside.
+
+### 11. Decouple generation from evaluation (resumability)
+- **Source:** same AI21 post (the "reliability tax" at 200k runs).
+- **Why:** losing a long trajectory near completion wastes tokens/compute; failed
+  *evaluation* shouldn't force re-*generation*.
+- **How:** split the pipeline into Generation (produce the patch) and Evaluation
+  (run tests), **persist generation artifacts** (patch + metadata), so a failed
+  eval retries cheaply and partial data (e.g. 80% done) is analyzable without
+  waiting for 100%.
+- **Related lesson — never re-fetch per pod:** AI21's first attempt died on
+  HuggingFace **429s** from thousands of pods re-downloading the dataset; our
+  analog is the **Docker Hub 429** we hit. Pre-stage images/data once (see #1),
+  never per-pod.
+- **Impact:** Medium/High (reliability + cost at scale). **Effort:** Medium.
+- **Status:** idea (recorded).
+
+> Ref (#10, #11): AI21, "Scaling Agentic Evaluation on SWE-bench" —
+> https://www.ai21.com/blog/scaling-agentic-evaluation-swe-bench/
+
+### 12. Mirror to Artifact Registry + GKE Image Streaming
+- **Source:** Nebius/SWE-rebench (internal **mirrors** to beat PyPI/Docker Hub/
+  Ubuntu rate limits) + GKE-native image features. Addresses three problems we
+  hit at once: Docker Hub **429s**, cold-pull latency (#1), and the per-node
+  **disk** ceiling (#9).
+- **Two parts that compose (and must, on GKE):**
+  1. **Mirror images into Artifact Registry (AR).** Either an AR **remote
+     repository** (transparent pull-through cache of `docker.io`), or an explicit
+     one-time **copy** of the batch's tags (`gcrane/crane copy`,
+     `slimshetty/...` → `us-central1-docker.pkg.dev/<proj>/<repo>/...`). Removes
+     Docker Hub rate limits and puts bytes in-region (fast).
+  2. **GKE Image Streaming (Container File System / gcfs).** Enable on the node
+     pool; pods **start before the full image is pulled**, layers stream lazily
+     on first read into a **bounded, evicting local cache**.
+  - **Hard dependency:** Image Streaming **only works for images in Artifact
+    Registry** — so the mirror (part 1) is a *prerequisite* for streaming.
+- **Why this is the strong answer:**
+  - Kills the **429** (mirror) → makes the #9 GC-churn / re-pull model safe.
+  - Near-zero **cold start** without an explicit pre-pull DaemonSet — streaming
+    largely **obviates #1** (no full pull to pre-do); pods become claimable as
+    soon as the entrypoint's first reads stream in.
+  - **Disk:** the node holds only the **blocks actually read**, evicted under
+    pressure — directly dissolves the "fit all images" conundrum (#9); no manual
+    working-set window needed for the *bytes* (you may still pre-warm pools for
+    *readiness*).
+- **Caveats:** GKE-only (gcfs feature on the node pool); first read of a
+  not-yet-streamed layer pays some latency (mitigated by warm pools / a small
+  pre-pull of hot images like the django base); AR storage/egress cost; remote
+  repo needs config + auth. Streaming wins most when a pod reads a *fraction* of
+  the image (true for startup; test runs read more).
+- **Suggested combo:** AR remote repo (no 429) + Image Streaming (no disk/pull
+  gate) + light pre-pull/warm of the **django base** (46% of tasks, #1) + warm
+  pools for *readiness*. This makes #9's window/GC management mostly unnecessary.
+- **Impact:** High (one move addresses 429 + cold-start + disk on GKE).
+- **Effort:** Low–Medium (enable gcfs; set up AR remote repo or a copy job).
+- **Status:** idea (recorded). Supersedes much of #1/#9 *on GKE*; #1's DaemonSet
+  remains the portable (non-GKE) fallback.
+- **Open:** measure streamed cold-start vs DaemonSet pre-pull on our cluster;
+  remote-repo vs explicit-copy trade-off; AR cost for the 500-image set.
+
+> Ref (#12): Nebius, "The infrastructure behind SWE-rebench" —
+> https://nebius.com/blog/posts/infrastructure-behind-swe-rebench
+
 ---
 
 ## Decisions / changelog
