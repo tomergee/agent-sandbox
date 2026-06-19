@@ -63,16 +63,26 @@ pass@k / RL runs.
 
 > Template per idea: **Why / How / Impact / Effort / Status / Open questions**
 
-### 1. Image pre-pull (kill cold-start)
+### 1. Image pre-pull (kill cold-start) — IMPLEMENTED + MEASURED
 - **Why:** the multi-GB image pull dominates first-use latency and gates warm
   pool readiness; at scale, node scale-ups re-pay it.
-- **How:** before the run, deploy a `DaemonSet` with an init container per unique
-  image so every node caches them; optionally pre-scale the node pool first so
-  new nodes come up pre-cached. (Described in the rl-tunix design doc §5.1.)
-- **Impact:** High (turns minutes → seconds on warm-up).
-- **Effort:** Medium.
-- **Status:** idea.
-- **Open:** disk pressure with many large images per node; GC/eviction policy.
+- **How:** `prepull.sh` deploys a `DaemonSet` with one init container per unique
+  image (no-op cmd, `IfNotPresent`) → every node caches them; waits for all nodes
+  ready, times it. `--delete` removes the DS (cached images persist).
+- **Measured (fresh django family, 1 task):** `wait warm` **80.9s cold → 6.0s**
+  after pre-pull; DaemonSet pull ran across all 3 nodes in 51.7s. See
+  `performance.md` → "Pre-pull (opt #1) — findings".
+- **Big caveat discovered — layer sharing:** 2nd image of an *already-pulled repo
+  family* warms in ~11s (thin top layer); only the *first image of a fresh
+  family* is truly cold (~81s). ⇒ pre-pull value ≈ per **unique repo family /
+  base**, not per instance.
+- **Impact:** High for fresh families / scale-up; ~break-even for a single task
+  but **compounds** with #tasks·replicas·nodes.
+- **Effort:** Done (Medium).
+- **Status:** implemented (`prepull.sh`); measured.
+- **Open:** init containers pull sequentially per node; disk ceiling ~80×1.2 GB
+  on 100 GB nodes → pre-pull batch families only. Future: GKE Image Streaming /
+  secondary boot disk (opts to compare).
 
 ### 2. Proportional pool sizing
 - **Why:** flat `MAX_WARMPOOL_SIZE` over- or under-provisions per image.
@@ -93,14 +103,24 @@ pass@k / RL runs.
 - **Effort:** Medium (concurrency + error aggregation + timing per task).
 - **Open:** how to attribute per-phase timers under concurrency.
 
-### 4. Reuse a sandbox for multiple tasks
-- **Why:** claim-per-task churns sandboxes (each claim consumes a warm one and
-  forces a replacement spin-up).
-- **How:** for tasks sharing an image, claim once and run several sequentially
-  (reset `/testbed` between tasks), or use claim TTL batching.
-- **Impact:** Medium (fewer claim/replace cycles).
-- **Effort:** Medium.
-- **Open:** state bleed between tasks; correctness of a git reset vs fresh pod.
+### 4. Reuse a sandbox for multiple tasks  — DEPRIORITIZED (niche + risky)
+- **Why considered:** claim-per-task churns sandboxes (each claim consumes a warm
+  one and forces a replacement spin-up).
+- **Reality check:** the model **dirties** the pod every run (edits `/testbed`,
+  runs tests, installs deps). So reuse needs a reset between runs.
+  - For **SWE-Bench-Verified it doesn't apply at all**: 1:1 image:task, each task
+    is a *different image/repo* — nothing to reuse across tasks.
+  - Only applies to **repeated runs of the same task** (RL group sampling /
+    pass@k: same image + same clean `base_commit`).
+- **How (if ever):** keep one claim for G rollouts of the same instance, reset
+  between each: `git -C /testbed reset --hard <base_commit> && git -C /testbed
+  clean -fdx`.
+- **Risk:** reset only restores the git tree, not state *outside* the repo (pip
+  installs, caches, `/tmp`, DBs) → **state bleed can corrupt reward**. A fresh
+  claimed sandbox guarantees a pristine baseline.
+- **Verdict:** fresh-per-task/rollout is the safe correctness default. Skip unless
+  claim churn is proven to be a real bottleneck in the group-sampling path.
+- **Status:** deprioritized.
 
 ### 5. Autoscale pools on demand (HPA)
 - **Why:** static replicas can't track bursty claim rates.

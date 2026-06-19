@@ -102,6 +102,25 @@ task images from Docker Hub.
 > `TASKS_LIMIT` and pool sizes tiny, and allow time for the first image pull
 > (raise `SANDBOX_READY_TIMEOUT`).
 
+### Optional: pre-pull images (faster warm-up)
+
+The multi-GB image pull is what gates warm-pool readiness. Since the task set is
+known up front, you can pre-pull the images onto every node first with
+[`prepull.sh`](./prepull.sh) (a DaemonSet, one init container per image):
+
+```bash
+./prepull.sh -n 4                       # pre-pull the first 4 dataset images
+# ...run the driver / e2e as usual; warm pools now skip the pull...
+./prepull.sh --delete                   # remove the DaemonSet (cached images stay)
+```
+
+Measured here (fresh repo family, 1 task): the `wait warm` phase dropped from
+**~81s cold → ~6s** after pre-pull, and the pull ran in parallel across all
+nodes (and auto-covers newly autoscaled nodes). Note `slimshetty/swebench`
+images **share base layers within a repo family**, so the *second* image of a
+family is already cheap (~11s) — pre-pull pays off most for each **fresh repo
+family** and for **node scale-up**, not per instance.
+
 ## Run it and what to expect
 
 First-time setup (once per cluster/shell):
@@ -308,8 +327,9 @@ kubectl delete namespace rl-tunix-swebench
 For production-scale runs (thousands of concurrent trajectories) the strategies
 here pair with two infra optimizations from the rl-tunix design:
 
-- **Image pre-pull** — pre-pull task images onto nodes (e.g. a `DaemonSet`)
-  before the run so warm pods skip the multi-GB pull.
+- **Image pre-pull** — pre-pull task images onto nodes before the run so warm
+  pods skip the multi-GB pull. See [`prepull.sh`](./prepull.sh) (DaemonSet);
+  measured ~81s→~6s warm-up on a fresh repo family.
 - **Proportional sizing** — size each image's pool to its share of the batch,
   `replicas_image ≈ GlobalConcurrency × tasks_image / tasks_total`, capped by
   `MAX_WARMPOOL_SIZE`.

@@ -41,6 +41,7 @@ MAX_WARMPOOL_SIZE="${MAX_WARMPOOL_SIZE:-8}"
 NAMESPACE="${NAMESPACE:-rl-tunix-swebench}"
 DATASET="${DATASET:-R2E-Gym/SWE-Bench-Verified}"
 DATASET_SPLIT="${DATASET_SPLIT:-test}"
+OFFSET="${OFFSET:-0}"
 NODE_SELECTOR_KEY="${NODE_SELECTOR_KEY:-}"
 NODE_SELECTOR_VAL="${NODE_SELECTOR_VAL:-}"
 RUNTIME_CLASS="${RUNTIME_CLASS:-}"
@@ -329,7 +330,7 @@ IMAGES=()
 fetch_tasks() {
   local t0 url ds_enc; t0=$(now_ms)
   ds_enc=$(printf '%s' "$DATASET" | sed 's;/;%2F;g')
-  url="https://datasets-server.huggingface.co/rows?dataset=${ds_enc}&config=default&split=${DATASET_SPLIT}&offset=0&length=${TASKS}"
+  url="https://datasets-server.huggingface.co/rows?dataset=${ds_enc}&config=default&split=${DATASET_SPLIT}&offset=${OFFSET}&length=${TASKS}"
   local line
   while IFS= read -r line; do [ -n "$line" ] && IMAGES+=("$line"); done < <(
     curl -s "$url" | jq -r '.rows[].row.docker_image' 2>/dev/null
