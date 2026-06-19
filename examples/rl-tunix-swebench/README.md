@@ -15,6 +15,24 @@ start a pod). Agent Sandbox `SandboxWarmPool`s solve the latter by keeping a
 configurable number of sandboxes pre-warmed per task image; this example adds
 the orchestration that decides *which* pools to keep warm, and *when*.
 
+### This is a simulator for the downstream RL use case
+
+There is **no model in the loop here.** This example is a **simulator / harness**
+for the infrastructure path that an RL training or evaluation run exercises. In a
+real [rl-tunix](https://github.com/google/tunix) run, the learner does, per
+trajectory: *claim a sandbox for the task's image → run the agent's actions in
+it → score → release.* This example stands in for the learner by claiming a
+sandbox per task and running a **lightweight probe command** instead of an actual
+agent rollout.
+
+That lets you **develop, benchmark, and tune the warm-pool infrastructure**
+(provisioning strategies, pool sizing, claim/scale behavior) in isolation —
+cheaply and reproducibly, without TPUs, a served model, or RL machinery — and
+then carry the same provisioning/claiming code into the real training/eval
+pipeline. The optimizations explored here (e.g. parallel claims, image pre-pull,
+pool sizing) map directly onto how the downstream RL job will provision and claim
+sandboxes at scale.
+
 ## Architecture
 
 ```mermaid
@@ -52,16 +70,33 @@ Per-image pool size is `min(tasks_for_image, MAX_WARMPOOL_SIZE)`.
 
 ## Prerequisites
 
+**What to clone:** just this repo (`kubernetes-sigs/agent-sandbox`) — the example
+lives in it. You do **not** need to clone `tunix` or `R2E-Gym`: the example is
+self-contained, the SDK comes from PyPI, the dataset from Hugging Face, and the
+task images from Docker Hub.
+
+**Cluster:**
 - A Kubernetes cluster with the Agent Sandbox **controller and extensions**
-  installed (the `SandboxTemplate` / `SandboxClaim` / `SandboxWarmPool` CRDs).
-  See the [installation guide](../../README.md#installation).
-- The Python SDK and deps: `pip install -r requirements.txt`
-  (installs `k8s-agent-sandbox`, `kubernetes`, `datasets`).
-- `kubectl` configured for the cluster (the SDK and driver use your kubeconfig).
-- Optional: a Docker Hub pull secret named via `IMAGE_PULL_SECRET` if anonymous
-  pulls of the SWE-bench images get rate-limited.
-- Optional: a gVisor-enabled node pool for strong isolation (set
-  `RUNTIME_CLASS=gvisor`).
+  installed (the `SandboxTemplate` / `SandboxClaim` / `SandboxWarmPool` CRDs,
+  API `v1beta1`). See the [installation guide](../../README.md#installation); if
+  you don't have a cluster, you can install the controller from this repo.
+- `kubectl` configured for the cluster. **On GKE** this also needs the
+  `gke-gcloud-auth-plugin` on your `PATH` (both `kubectl` and the Python SDK
+  authenticate through your kubeconfig, which invokes it):
+  `gcloud components install gke-gcloud-auth-plugin`.
+
+**For the Python driver + notebook (Options A & C):**
+- Python ≥ 3.10.
+- `pip install -r requirements.txt` (installs `k8s-agent-sandbox`, `kubernetes`,
+  `datasets` from PyPI — no extra repo needed).
+
+**For the bash e2e test (Option D):**
+- `kubectl`, `curl`, and `jq` (no Python/SDK).
+
+**Optional:**
+- A Docker Hub pull secret named via `IMAGE_PULL_SECRET` if anonymous pulls of
+  the SWE-bench images get rate-limited.
+- A gVisor-enabled node pool for strong isolation (set `RUNTIME_CLASS=gvisor`).
 
 > **Heads up:** SWE-bench images are multi-GB. On a small cluster keep
 > `TASKS_LIMIT` and pool sizes tiny, and allow time for the first image pull
