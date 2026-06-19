@@ -268,7 +268,11 @@ STRATEGY=sliding TASKS=3 WINDOW_SIZE=1 \
 
 It fetches real task images from the dataset (HF datasets-server REST API),
 labels everything `app=rl-tunix-e2e`, and an EXIT trap cleans up even on
-Ctrl-C (use `--no-cleanup` to keep objects for inspection). Sample tail:
+Ctrl-C (use `--no-cleanup` to keep objects for inspection). For accurate
+sub-second timing it runs a transient `kubectl proxy` (auth once) and hits the
+local API over curl for hot-path polls/claims — avoiding the ~1 s/call kubectl
+tax on GKE, so the reported `claim` reflects the controller, not the harness.
+Sample tail:
 
 ```text
 ▶ Created objects in namespace rl-tunix-swebench

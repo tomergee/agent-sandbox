@@ -105,7 +105,7 @@ die()  { printf '%sERROR:%s %s\n' "$C_R" "$C_0" "$*" >&2; exit 1; }
 # Timing: ms clock + per-phase accumulators (bash 3.2 friendly)
 # --------------------------------------------------------------------------- #
 now_ms() { python3 -c 'import time;print(int(time.time()*1000))' 2>/dev/null || echo $(( $(date +%s) * 1000 )); }
-fmt_s()  { awk "BEGIN{printf \"%.1f\", $1/1000}"; }
+fmt_s()  { awk "BEGIN{printf \"%.2f\", $1/1000}"; }
 
 T_PREFLIGHT=0; T_FETCH=0; T_NAMESPACE=0; T_PROVISION=0
 T_WAITREADY=0; T_CLAIM=0; T_EXEC=0; T_TEARDOWN=0
@@ -118,6 +118,29 @@ TASKS_DONE=0
 # kubectl convenience
 # --------------------------------------------------------------------------- #
 kc() { kubectl -n "$NAMESPACE" "$@"; }
+
+# --------------------------------------------------------------------------- #
+# Fast API path: one `kubectl proxy` (auth once), then hit the local API over
+# curl for the hot-path polls/creates. Avoids the ~1s/call kubectl tax (auth
+# plugin + TLS + process spawn) so claim/ready latency reflects the controller,
+# not the harness. GETs go through the proxy; creates POST to it.
+# --------------------------------------------------------------------------- #
+SANDBOX_GROUP="agents.x-k8s.io"               # core Sandbox CRD group
+PROXY_PORT="${PROXY_PORT:-8693}"
+PROXY_BASE="http://127.0.0.1:${PROXY_PORT}"
+PROXY_PID=""
+start_proxy() {
+  kubectl proxy --port="$PROXY_PORT" >/dev/null 2>&1 &
+  PROXY_PID=$!
+  local d=$(( $(date +%s) + 15 ))
+  while :; do
+    curl -s -o /dev/null "${PROXY_BASE}/api" && { ok "kubectl proxy up on :${PROXY_PORT} (fast API path)"; return 0; }
+    [ "$(date +%s)" -ge "$d" ] && die "kubectl proxy did not come up on :${PROXY_PORT}"
+    sleep 0.2
+  done
+}
+stop_proxy() { [ -n "$PROXY_PID" ] && kill "$PROXY_PID" 2>/dev/null; PROXY_PID=""; }
+ns_api() { printf '%s/apis/%s/v1beta1/namespaces/%s' "$PROXY_BASE" "$1" "$NAMESPACE"; }  # $1=group
 
 template_name() {
   local img="$1" h
@@ -202,30 +225,22 @@ wait_pool_ready() {  # $1 pool  $2 expected
   local pool="$1" want="$2" ready deadline
   deadline=$(( $(date +%s) + READY_TIMEOUT ))
   while :; do
-    ready=$(kc get sandboxwarmpool "$pool" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "")
+    ready=$(curl -s "$(ns_api "$GROUP")/sandboxwarmpools/${pool}" | jq -r '.status.readyReplicas // 0' 2>/dev/null)
     ready=${ready:-0}
     [ "$ready" -ge "$want" ] 2>/dev/null && { ok "pool $pool ready ($ready/$want)"; return 0; }
     [ "$(date +%s)" -ge "$deadline" ] && die "pool $pool not ready ($ready/$want) within ${READY_TIMEOUT}s"
-    sleep 4
+    sleep 0.2
   done
 }
 
 CLAIM_SEQ=0
-claim_sandbox() {  # $1 pool  -> echoes claim name
+claim_sandbox() {  # $1 pool  -> echoes claim name (POST via proxy, fast)
   CLAIM_SEQ=$(( CLAIM_SEQ + 1 ))
-  local claim="e2e-claim-${CLAIM_SEQ}-$RANDOM"
-  kubectl apply -f - >/dev/null <<YAML
-apiVersion: ${GROUP}/v1beta1
-kind: SandboxClaim
-metadata:
-  name: ${claim}
-  namespace: ${NAMESPACE}
-  labels:
-    ${LABEL_KEY}: ${LABEL_VAL}
-spec:
-  warmPoolRef:
-    name: $1
-YAML
+  local claim="e2e-claim-${CLAIM_SEQ}-$RANDOM" pool="$1" code body
+  body="{\"apiVersion\":\"${GROUP}/v1beta1\",\"kind\":\"SandboxClaim\",\"metadata\":{\"name\":\"${claim}\",\"namespace\":\"${NAMESPACE}\",\"labels\":{\"${LABEL_KEY}\":\"${LABEL_VAL}\"}},\"spec\":{\"warmPoolRef\":{\"name\":\"${pool}\"}}}"
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+    --data "$body" "$(ns_api "$GROUP")/sandboxclaims")
+  [ "$code" = "201" ] || die "claim POST failed (HTTP $code)"
   echo "$claim"
 }
 
@@ -233,10 +248,10 @@ resolve_sandbox() {  # $1 claim -> echoes sandbox name
   local claim="$1" sb deadline
   deadline=$(( $(date +%s) + READY_TIMEOUT ))
   while :; do
-    sb=$(kc get sandboxclaim "$claim" -o jsonpath='{.status.sandbox.name}' 2>/dev/null || echo "")
+    sb=$(curl -s "$(ns_api "$GROUP")/sandboxclaims/${claim}" | jq -r '.status.sandbox.name // empty' 2>/dev/null)
     [ -n "$sb" ] && { echo "$sb"; return 0; }
-    [ "$(date +%s)" -ge "$deadline" ] && { kc get sandboxclaim "$claim" -o yaml >&2; die "claim $claim did not resolve a sandbox"; }
-    sleep 2
+    [ "$(date +%s)" -ge "$deadline" ] && die "claim $claim did not resolve a sandbox"
+    sleep 0.1
   done
 }
 
@@ -244,16 +259,18 @@ wait_sandbox_ready() {  # $1 sandbox
   local sb="$1" st deadline
   deadline=$(( $(date +%s) + READY_TIMEOUT ))
   while :; do
-    st=$(kc get sandbox "$sb" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
+    st=$(curl -s "$(ns_api "$SANDBOX_GROUP")/sandboxes/${sb}" \
+         | jq -r '(.status.conditions[]? | select(.type=="Ready") | .status) // empty' 2>/dev/null)
     [ "$st" = "True" ] && return 0
     [ "$(date +%s)" -ge "$deadline" ] && die "sandbox $sb not Ready within ${READY_TIMEOUT}s"
-    sleep 2
+    sleep 0.1
   done
 }
 
 pod_of() {  # $1 sandbox -> echoes pod name
   local sb="$1" pod
-  pod=$(kc get sandbox "$sb" -o jsonpath='{.metadata.annotations.agents\.x-k8s\.io/pod-name}' 2>/dev/null || echo "")
+  pod=$(curl -s "$(ns_api "$SANDBOX_GROUP")/sandboxes/${sb}" \
+        | jq -r '.metadata.annotations["agents.x-k8s.io/pod-name"] // empty' 2>/dev/null)
   echo "${pod:-$sb}"
 }
 
@@ -302,6 +319,7 @@ cleanup_all() {
 CLEANED=0
 on_exit() {
   local rc=$?
+  stop_proxy
   if [ "$CLEANUP" = "1" ] && [ "$CLEANED" = "0" ]; then
     echo; warn "cleaning up (trap)…"; cleanup_all
   fi
@@ -495,6 +513,7 @@ main() {
   echo
 
   preflight
+  start_proxy
   fetch_tasks
   ensure_namespace
 

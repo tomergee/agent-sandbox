@@ -67,7 +67,12 @@ tear=teardown.
 | 2026-06-19 | e2e_test.sh | naive | 10 | –/1 | strategy compare | astropy (base cached) | 38.8 | 49.8 | 37.6 | 26.1 | 23.8 | **193.8** | 10 pools pre-warmed up front (replicas=1, MAX_CONCURRENT=1) |
 | 2026-06-19 | e2e_test.sh | sliding | 10 | 2/8 | strategy compare | astropy (base cached) | 37.2 | 49.5 | 38.2 | 26.0 | 23.8 | **189.6** | window 2; rolls through 10 images |
 
-### 10-task strategy comparison (2026-06-19)
+### 10-task strategy comparison (2026-06-19) — SUPERSEDED (harness-inflated)
+
+> These numbers were inflated by the test harness, not the platform: every poll
+> was a fresh `kubectl` call (~1 s each on GKE: auth-plugin token + TLS + process)
+> and poll loops slept 2–4 s. Fixed by running one `kubectl proxy` (auth once) +
+> curl to the local API + 0.1 s polls. See **v2** below for real numbers.
 
 Same 10 astropy tasks (offset 0; family base already node-cached), serial
 execution (`MAX_CONCURRENT=1`), 3×e2-standard-2.
@@ -99,6 +104,39 @@ execution (`MAX_CONCURRENT=1`), 3×e2-standard-2.
 > a run claimed sandboxes accumulate — fine at this scale, but inflates resident
 > pods for large serial runs (the Python driver releases per task via
 > `sandbox.terminate()`).
+
+### 10-task strategy comparison v2 — fast harness (2026-06-19)
+
+Same workload, after fixing the harness (one `kubectl proxy` + curl to local API
+for all hot-path polls/claims; 0.1 s polls; 2-decimal timing). These reflect the
+**platform**, not kubectl/poll overhead.
+
+| Strategy | preflight | fetch | ns | provision | wait warm | **claim** | exec | teardown | **TOTAL** |
+| :--- | --: | --: | --: | --: | --: | --: | --: | --: | --: |
+| none    | 1.67 | 4.34 | 0.93 | 37.42 | 11.63 | **6.12** | 18.11 | 23.91 | **144.24** |
+| naive   | 1.63 | 2.89 | 1.00 | 37.52 | 12.54 | **5.70** | 18.34 | 23.99 | **114.43** |
+| sliding | 1.68 | 3.36 | 0.97 | 37.69 | 14.66 | **5.75** | 18.26 | 24.09 | **117.24** |
+
+**What changed vs the inflated run (and why):**
+- **claim: 37.5 s → ~6 s** (≈ **0.6 s/task**) — claiming a pre-warmed sandbox is
+  ~sub-second; the old number was 3 kubectl calls/task + `sleep 2`. *This confirms
+  warm-pool claims are effectively instant.*
+- **wait warm: 49–89 s → 12–15 s** — the old `wait_pool_ready` used `sleep 4` +
+  kubectl polls; real same-family (cached-base) warm-up is ~1 s/pool.
+- **TOTALs: 190–260 s → 114–144 s.**
+
+**Where the time actually is now (all legitimate kubectl-bound work, not poll
+artifacts):**
+- **provision ~37 s** = 10× (`kubectl apply` template + warmpool) ≈ 20 kubectl
+  calls @ ~1 s. Could be cut by POSTing creates via the proxy too.
+- **teardown ~24 s** = kubectl deletes per pool.
+- **exec ~18 s** = 10× `kubectl exec` (~1.8 s each; SPDY/exec stays on kubectl).
+- **claim ~6 s** = the only phase now near its true floor.
+
+**Ranking holds:** naive ≈ sliding (~115 s) < none (144 s); sliding matches naive
+at a fraction of the warm footprint. The serial ceiling is now provision +
+teardown + exec (kubectl-bound), addressable by proxy-POST creates and opt #3
+(parallel exec) — *not* warm-pool strategy.
 
 ### Pre-pull (opt #1) — findings
 
