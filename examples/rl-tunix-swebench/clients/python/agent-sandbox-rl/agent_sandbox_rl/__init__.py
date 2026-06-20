@@ -20,6 +20,7 @@ Cluster/resources/fleet land in later phases.
 """
 
 from . import constants
+from .cluster import Cluster, ClusterRegistry, build_api_client
 from .config import ClusterConfig, FleetConfig, ResourceSpec, TemplateSpec
 from .exceptions import (
     CapacityError,
@@ -27,6 +28,7 @@ from .exceptions import (
     NoClusterAvailableError,
     PreflightError,
 )
+from .resources import Resources
 from .sizing import compute_replicas, plan, recommend_window
 
 __all__ = [
@@ -38,6 +40,10 @@ __all__ = [
     "compute_replicas",
     "recommend_window",
     "plan",
+    "Resources",
+    "Cluster",
+    "ClusterRegistry",
+    "build_api_client",
     "FleetError",
     "PreflightError",
     "CapacityError",
