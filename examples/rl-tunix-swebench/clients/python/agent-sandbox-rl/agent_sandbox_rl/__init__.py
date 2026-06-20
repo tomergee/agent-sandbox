@@ -28,22 +28,53 @@ from .exceptions import (
     NoClusterAvailableError,
     PreflightError,
 )
+from .fleet import FleetPlan, PlanEntry, SandboxFleet
+from .handles import SandboxHandle
+from .placement import (
+    CapacityWeighted,
+    ImageAffinity,
+    LeastLoaded,
+    RoundRobin,
+    get_placement,
+)
 from .resources import Resources
 from .sizing import compute_replicas, plan, recommend_window
+from .sources import JsonlSource, ListSource, Task, TaskSource, to_tasks
 
 __all__ = [
     "constants",
+    # config
     "FleetConfig",
     "ClusterConfig",
     "TemplateSpec",
     "ResourceSpec",
+    # sizing
     "compute_replicas",
     "recommend_window",
     "plan",
+    # sources
+    "Task",
+    "TaskSource",
+    "ListSource",
+    "JsonlSource",
+    "to_tasks",
+    # cluster / resources
     "Resources",
     "Cluster",
     "ClusterRegistry",
     "build_api_client",
+    # placement
+    "get_placement",
+    "RoundRobin",
+    "LeastLoaded",
+    "CapacityWeighted",
+    "ImageAffinity",
+    # fleet
+    "SandboxFleet",
+    "FleetPlan",
+    "PlanEntry",
+    "SandboxHandle",
+    # exceptions
     "FleetError",
     "PreflightError",
     "CapacityError",
