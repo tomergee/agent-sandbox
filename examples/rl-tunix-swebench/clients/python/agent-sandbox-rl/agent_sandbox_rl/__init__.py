@@ -40,6 +40,7 @@ from .placement import (
 from .resources import Resources
 from .sizing import compute_replicas, plan, recommend_window
 from .sources import JsonlSource, ListSource, Task, TaskSource, to_tasks
+from .strategies import STRATEGIES, process_parallel
 
 __all__ = [
     "constants",
@@ -74,6 +75,9 @@ __all__ = [
     "FleetPlan",
     "PlanEntry",
     "SandboxHandle",
+    # strategies
+    "STRATEGIES",
+    "process_parallel",
     # exceptions
     "FleetError",
     "PreflightError",

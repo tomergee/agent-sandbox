@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional
 
+from kubernetes import client
 from kubernetes.stream import stream
 
 from .sources import Task
@@ -69,9 +70,14 @@ class SandboxHandle:
   _cluster: "Cluster" = field(default=None, repr=False)
 
   def exec(self, command, timeout: int | None = None) -> str:
-    """Run a command inside the sandbox (router-free, via the pod's exec API)."""
-    return exec_in_pod(self._cluster.core_api, self.pod_name,
-                       self._cluster.namespace, command)
+    """Run a command inside the sandbox (router-free, via the pod's exec API).
+
+    Builds a fresh ``ApiClient`` per call: the kubernetes ``stream()`` (websocket)
+    exec is not thread-safe across a shared client, so this keeps parallel execs
+    isolated.
+    """
+    core = client.CoreV1Api(client.ApiClient(self._cluster.api_client.configuration))
+    return exec_in_pod(core, self.pod_name, self._cluster.namespace, command)
 
   def endpoint(self, port: int = 8888) -> str:
     """In-cluster endpoint (``<hostname>.<namespace>:<port>``) for callers that
@@ -79,13 +85,14 @@ class SandboxHandle:
     return f"{self.hostname}.{self._cluster.namespace}:{port}"
 
   def release(self) -> None:
-    """Release this sandbox (delete its claim) and update cluster bookkeeping."""
-    try:
-      if self.sandbox is not None:
-        self.sandbox.terminate()
-      else:
-        self._cluster.sandbox_client.delete_sandbox(
-            self.claim_name, namespace=self._cluster.namespace)
-    finally:
-      if self._cluster is not None and self._cluster.active_claims > 0:
-        self._cluster.active_claims -= 1
+    """Release this sandbox (delete its claim).
+
+    Note: when managed by a `SandboxFleet`, prefer ``fleet.release(handle)`` —
+    it also updates the fleet's claim/replica bookkeeping under its lock. Calling
+    this directly just frees the remote resources.
+    """
+    if self.sandbox is not None:
+      self.sandbox.terminate()
+    else:
+      self._cluster.sandbox_client.delete_sandbox(
+          self.claim_name, namespace=self._cluster.namespace)

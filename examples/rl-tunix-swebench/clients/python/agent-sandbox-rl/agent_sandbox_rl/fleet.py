@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import collections
 import logging
+import threading
 from dataclasses import dataclass
 from typing import Callable, Optional
 
@@ -83,6 +84,8 @@ class SandboxFleet:
     self.tasks: list[Task] = []
     self.plan_: FleetPlan | None = None
     self._handles: list[SandboxHandle] = []
+    self._warmed: dict[str, int] = {}        # image -> replicas currently warmed
+    self._lock = threading.Lock()            # guards bookkeeping under parallel run
 
   @staticmethod
   def _default_registry(config: FleetConfig) -> ClusterRegistry:
@@ -173,6 +176,36 @@ class SandboxFleet:
         c.resources.wait_for_pool_ready(
             e.pool, e.replicas, timeout=self.config.ready_timeout)
 
+  def warm_image(self, image: str, *, replicas_override: int | None = None,
+                 wait: bool = True) -> None:
+    """Warm one image's pool (used by sliding/none to bound the footprint)."""
+    entry = (self.plan_ or self.plan()).for_image(image)
+    if entry is None:
+      raise KeyError(f"image not in plan: {image}")
+    c = self.registry.get(entry.cluster)
+    reps = replicas_override if replicas_override is not None else entry.replicas
+    c.resources.ensure_template(
+        image, entry.template, c.template_spec(self.config.template))
+    c.resources.create_warmpool(entry.pool, entry.template, reps)
+    with self._lock:
+      c.active_replicas += reps
+      self._warmed[image] = reps
+    if wait:
+      c.resources.wait_for_pool_ready(
+          entry.pool, reps, timeout=self.config.ready_timeout)
+
+  def unwarm_image(self, image: str) -> None:
+    """Tear down one image's pool + template."""
+    entry = (self.plan_ or self.plan()).for_image(image)
+    if entry is None:
+      return
+    c = self.registry.get(entry.cluster)
+    c.resources.delete_warmpool(entry.pool)
+    c.resources.delete_template(entry.template)
+    with self._lock:
+      reps = self._warmed.pop(image, entry.replicas)
+      c.active_replicas = max(0, c.active_replicas - reps)
+
   def setup(self) -> "SandboxFleet":
     """preflight → plan → ensure templates → start (and wait for) warm pools."""
     self.preflight()
@@ -190,7 +223,8 @@ class SandboxFleet:
     else:
       cluster = self.placement.select(task.image, self.registry)
       pool = self._ensure_pool(cluster, task.image, 1)
-      cluster.active_replicas += 1
+      with self._lock:
+        cluster.active_replicas += 1
 
     sandbox = cluster.sandbox_client.create_sandbox(
         warmpool=pool, namespace=cluster.namespace,
@@ -204,8 +238,9 @@ class SandboxFleet:
         task=task, cluster_name=cluster.name, claim_name=sandbox.claim_name,
         sandbox_id=sandbox.sandbox_id, pod_name=pod, hostname=sandbox.sandbox_id,
         pod_ip=pod_ip, sandbox=sandbox, _cluster=cluster)
-    cluster.active_claims += 1
-    self._handles.append(handle)
+    with self._lock:
+      cluster.active_claims += 1
+      self._handles.append(handle)
     return handle
 
   def acquire_batch(self, tasks: list[Task]) -> list[SandboxHandle]:
@@ -222,8 +257,12 @@ class SandboxFleet:
 
   def release(self, handle: SandboxHandle) -> None:
     handle.release()
-    if handle in self._handles:
-      self._handles.remove(handle)
+    with self._lock:
+      if handle in self._handles:
+        self._handles.remove(handle)
+      c = self.registry.get(handle.cluster_name)
+      if c.active_claims > 0:
+        c.active_claims -= 1
 
   def release_all(self) -> None:
     for h in list(self._handles):
@@ -255,18 +294,15 @@ class SandboxFleet:
   def __exit__(self, *exc) -> None:
     self.teardown()
 
-  # --- managed runner (naive; strategies refine this in phase 4) --------- #
-  def run(self, process_fn: Callable[[Task, SandboxHandle], object]) -> list:
-    """Pre-warm all pools, then claim → process → release each task serially."""
-    self.setup()
-    results = []
-    try:
-      for task in self.tasks:
-        handle = self.acquire(task)
-        try:
-          results.append(process_fn(task, handle))
-        finally:
-          self.release(handle)
-    finally:
-      self.teardown()
-    return results
+  # --- managed runner ---------------------------------------------------- #
+  def run(self, process_fn: Callable[[Task, SandboxHandle], object],
+          strategy: str = "naive", concurrency: int | None = None) -> list:
+    """Run all loaded tasks under ``strategy`` (none|naive|sliding) with up to
+    ``concurrency`` parallel claim+exec (defaults to ``config.max_concurrent``).
+    Returns one result per task (a per-task exception is captured, not raised).
+    """
+    from .strategies import STRATEGIES
+    if strategy not in STRATEGIES:
+      raise ValueError(f"unknown strategy '{strategy}'; choose from {sorted(STRATEGIES)}")
+    conc = concurrency or self.config.max_concurrent
+    return STRATEGIES[strategy](self, process_fn, conc)
