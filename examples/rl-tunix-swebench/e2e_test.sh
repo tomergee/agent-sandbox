@@ -38,7 +38,7 @@ STRATEGY="${STRATEGY:-}"
 TASKS="${TASKS:-}"
 WINDOW_SIZE="${WINDOW_SIZE:-2}"
 MAX_WARMPOOL_SIZE="${MAX_WARMPOOL_SIZE:-8}"
-MAX_CONCURRENT="${MAX_CONCURRENT:-1}"   # concurrency budget used to size pools
+MAX_CONCURRENT="${MAX_CONCURRENT:-1}"   # concurrency: sizes pools AND runs claim+exec in parallel (waves)
 NAMESPACE="${NAMESPACE:-rl-tunix-swebench}"
 DATASET="${DATASET:-R2E-Gym/SWE-Bench-Verified}"
 DATASET_SPLIT="${DATASET_SPLIT:-test}"
@@ -62,6 +62,7 @@ while [ $# -gt 0 ]; do
     -s|--strategy) STRATEGY="$2"; shift 2 ;;
     -n|--tasks) TASKS="$2"; shift 2 ;;
     -w|--window) WINDOW_SIZE="$2"; shift 2 ;;
+    -c|--concurrency) MAX_CONCURRENT="$2"; shift 2 ;;
     -y|--yes) ASSUME_YES=1; shift ;;
     --no-cleanup) CLEANUP=0; shift ;;
     -h|--help)
@@ -77,6 +78,7 @@ Flags:
   -s, --strategy  none | naive | sliding
   -n, --tasks     number of tasks (dataset rows) to run
   -w, --window    sliding-window size (images kept warm)
+  -c, --concurrency  parallel claim+exec (waves); also the pool-sizing budget [1]
   -y, --yes       skip the interactive menu (use env/flags/defaults)
       --no-cleanup leave created objects on the cluster
   -h, --help      show this help
@@ -109,6 +111,7 @@ fmt_s()  { awk "BEGIN{printf \"%.2f\", $1/1000}"; }
 
 T_PREFLIGHT=0; T_FETCH=0; T_NAMESPACE=0; T_PROVISION=0
 T_WAITREADY=0; T_CLAIM=0; T_EXEC=0; T_TEARDOWN=0
+T_TASKS_WALL=0          # wall-clock of the (possibly parallel) claim+exec region
 add_ms() { eval "$1=\$(( \${$1:-0} + $2 ))"; }   # $1 phase var, $2 delta ms
 
 SCRIPT_START=$(now_ms)
@@ -288,22 +291,58 @@ pod_of() {  # $1 sandbox -> echoes pod name
 }
 
 # Claim a sandbox from $1 and exec the probe; accumulates CLAIM/EXEC phases.
-run_task_on_pool() {  # $1 pool  $2 task-label
-  local pool="$1" label="$2" t0 claim sb pod out
+# One task: claim a sandbox from $1, exec the probe. Runs in a background
+# subshell, so it writes results/timings to files in $3 (subshell vars don't
+# propagate to the parent); the parent aggregates in run_units().
+run_task_unit() {  # $1 pool  $2 label  $3 workdir
+  local pool="$1" label="$2" wd="$3" t0 claim sb pod out cms ems
   t0=$(now_ms)
   claim=$(claim_sandbox "$pool")
-  TOTAL_CLAIMS=$(( TOTAL_CLAIMS + 1 ))
   sb=$(resolve_sandbox "$claim")
   wait_sandbox_ready "$sb"
-  add_ms T_CLAIM $(( $(now_ms) - t0 ))
-
+  cms=$(( $(now_ms) - t0 ))
   t0=$(now_ms)
   pod=$(pod_of "$sb")
   out=$(kc exec "$pod" -- bash -lc "$PROBE" 2>/dev/null | tr '\n' ' ' || echo "<exec failed>")
-  add_ms T_EXEC $(( $(now_ms) - t0 ))
-  ok "task ${label}: claim=${claim} sandbox=${sb} pod=${pod}"
-  say "      ↳ ${out}"
-  TASKS_DONE=$(( TASKS_DONE + 1 ))
+  ems=$(( $(now_ms) - t0 ))
+  printf '%s %s\n' "$cms" "$ems" > "$wd/ms.$label"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$label" "$claim" "$sb" "$pod" "$out" > "$wd/res.$label"
+}
+
+# Run a list of "pool|label" task units, up to MAX_CONCURRENT at a time
+# (wave-based; bash 3.2 has no `wait -n`). Times the whole region as one
+# wall-clock bucket (T_TASKS_WALL) and aggregates per-task claim/exec sums.
+run_units() {  # "$@" = pool|label ...
+  [ "$#" -gt 0 ] || return 0
+  local wd u pool label rc=0 f cms ems lbl claim sb pod out exp got
+  local pids; pids=()
+  wd=$(mktemp -d "${TMPDIR:-/tmp}/e2e-units.XXXXXX")
+  exp=$#
+  local t0; t0=$(now_ms)
+  for u in "$@"; do
+    pool="${u%%|*}"; label="${u##*|}"
+    run_task_unit "$pool" "$label" "$wd" &
+    pids+=("$!")
+    if [ "${#pids[@]}" -ge "$MAX_CONCURRENT" ]; then wait "${pids[@]}" 2>/dev/null || true; pids=(); fi
+  done
+  [ "${#pids[@]}" -gt 0 ] && { wait "${pids[@]}" 2>/dev/null || true; }
+  add_ms T_TASKS_WALL $(( $(now_ms) - t0 ))
+
+  got=0
+  for f in "$wd"/ms.*; do
+    [ -e "$f" ] || continue
+    read -r cms ems < "$f"
+    add_ms T_CLAIM "$cms"; add_ms T_EXEC "$ems"
+    TOTAL_CLAIMS=$(( TOTAL_CLAIMS + 1 )); TASKS_DONE=$(( TASKS_DONE + 1 )); got=$(( got + 1 ))
+  done
+  for f in "$wd"/res.*; do
+    [ -e "$f" ] || continue
+    IFS=$'\t' read -r lbl claim sb pod out < "$f"
+    ok "task ${lbl}: claim=${claim} sandbox=${sb} pod=${pod}"
+    say "      ↳ ${out}"
+  done
+  [ "$got" -lt "$exp" ] && warn "$(( exp - got ))/${exp} task(s) failed (no result written)"
+  rm -rf "$wd"
 }
 
 provision_pool() {  # $1 image  $2 replicas  (side effect only; accumulates PROVISION + WAITREADY)
@@ -410,7 +449,7 @@ strategy_none() {
     info "task ${i}/${#IMAGES[@]}: ${img}"
     provision_pool "$img" 1
     pool=$(pool_name "$(template_name "$img")")
-    run_task_on_pool "$pool" "$i"
+    run_units "${pool}|${i}"
     dump_objects
     teardown_pool "$img"
     i=$(( i + 1 ))
@@ -435,11 +474,12 @@ strategy_naive() {
     info "pre-warming ${img} (replicas=${reps})"
     provision_pool "$img" "$reps"
   done
-  local t=1
+  local t=1 units; units=()
   for (( i=0; i<n; i++ )); do
     img="${U[$i]}"; local pool; pool=$(pool_name "$(template_name "$img")")
-    local j; for (( j=0; j<CNT[$i]; j++ )); do run_task_on_pool "$pool" "$t"; t=$(( t + 1 )); done
+    local j; for (( j=0; j<CNT[$i]; j++ )); do units+=("${pool}|${t}"); t=$(( t + 1 )); done
   done
+  run_units "${units[@]}"
   dump_objects
   for (( i=0; i<n; i++ )); do teardown_pool "${U[$i]}"; done
 }
@@ -461,7 +501,9 @@ strategy_sliding() {
   for (( i=0; i<n; i++ )); do
     img="${U[$i]}"
     pool=$(pool_name "$(template_name "$img")")
-    local j; for (( j=0; j<CNT[$i]; j++ )); do run_task_on_pool "$pool" "$t"; t=$(( t + 1 )); done
+    local j units; units=()
+    for (( j=0; j<CNT[$i]; j++ )); do units+=("${pool}|${t}"); t=$(( t + 1 )); done
+    run_units "${units[@]}"
     if [ "$dumped" = "0" ]; then dump_objects; dumped=1; fi   # snapshot mid-run (window active)
     teardown_pool "$img"
     # Slide: pre-warm the next out-of-window image.
@@ -509,12 +551,14 @@ report() {
   printf "  %-22s %8ss\n" "create namespace"   "$(fmt_s $T_NAMESPACE)"
   printf "  %-22s %8ss\n" "provision pools"    "$(fmt_s $T_PROVISION)"
   printf "  %-22s %8ss\n" "wait warm (pull)"   "$(fmt_s $T_WAITREADY)"
-  printf "  %-22s %8ss\n" "claim sandboxes"    "$(fmt_s $T_CLAIM)"
-  printf "  %-22s %8ss\n" "exec probes"        "$(fmt_s $T_EXEC)"
+  printf "  %-22s %8ss\n" "claim sandboxes (Σ)" "$(fmt_s $T_CLAIM)"
+  printf "  %-22s %8ss\n" "exec probes (Σ)"     "$(fmt_s $T_EXEC)"
+  printf "  %-22s %8ss\n" "tasks region (wall)" "$(fmt_s $T_TASKS_WALL)"
   printf "  %-22s %8ss\n" "teardown"           "$(fmt_s $T_TEARDOWN)"
   echo   "  ──────────────────────────────────────────"
   printf "  %-22s %8ss\n" "${C_B}TOTAL e2e${C_0}" "$(fmt_s $total)"
   echo   "  ──────────────────────────────────────────"
+  printf "  %-22s %8d\n" "concurrency (MAX)"    "$MAX_CONCURRENT"
   printf "  %-22s %8d\n" "SandboxClaims started" "$TOTAL_CLAIMS"
   printf "  %-22s %8d\n" "warm replicas (total)" "$WARM_REPLICAS_TOTAL"
   printf "  %-22s %8d\n" "warm replicas (peak)"  "$PEAK_REPLICAS"
@@ -533,7 +577,7 @@ main() {
   [ "$TASKS" -ge 1 ] || die "tasks must be >= 1"
 
   echo
-  info "config: strategy=${STRATEGY} tasks=${TASKS} window=${WINDOW_SIZE} max_pool=${MAX_WARMPOOL_SIZE} ns=${NAMESPACE} cleanup=${CLEANUP}"
+  info "config: strategy=${STRATEGY} tasks=${TASKS} concurrency=${MAX_CONCURRENT} window=${WINDOW_SIZE} max_pool=${MAX_WARMPOOL_SIZE} ns=${NAMESPACE} cleanup=${CLEANUP}"
   echo
 
   preflight

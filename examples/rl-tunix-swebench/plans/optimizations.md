@@ -153,15 +153,23 @@ MAX_WARMPOOL_SIZE)`** — driven by tasks-per-image, capped by the flat cap.
 - **Status:** implemented (`sizing.py`), self-demo included; cluster-measure the
   footprint reduction once #3 lands.
 
-### 3. Parallel task execution
-- **Why:** the driver and `e2e_test.sh` currently claim+exec **serially**;
-  wall-clock scales linearly with task count.
-- **How:** claim/exec tasks concurrently up to a `MAX_CONCURRENT` (bounded by
-  pool replicas + cluster capacity); in bash via background jobs + `wait`, in
-  Python via asyncio/threads.
-- **Impact:** High for multi-task runs.
-- **Effort:** Medium (concurrency + error aggregation + timing per task).
-- **Open:** how to attribute per-phase timers under concurrency.
+### 3. Parallel task execution — IMPLEMENTED (e2e) + MEASURED
+- **Why:** claim+exec ran **serially**; wall-clock scaled linearly with tasks.
+- **How (`e2e_test.sh`):** `run_units` runs claim+exec in **waves of
+  `MAX_CONCURRENT`** (bash 3.2: per-wave `wait <pids>` — never bare `wait`, which
+  would block on the `kubectl proxy`); each unit writes results/timings to a temp
+  dir, parent aggregates. New `-c`/`MAX_CONCURRENT` knob (also the pool-sizing
+  budget). Report adds **tasks region (wall)** vs aggregate claim/exec (Σ).
+- **Measured (naive, 4 tasks):** tasks region **9.89→5.31→2.81 s** at c=1/2/4
+  (≈1×/1.9×/3.5×); per-task work unchanged. TOTAL 54.9→48.1 s — now bounded by
+  the **serial** provision (~37 s) + teardown (~24 s), the next ceiling
+  (proxy-POST creates). See `performance.md`.
+- **Impact:** High for multi-task task region; gated by provision/teardown for TOTAL.
+- **Effort:** Done (Medium).
+- **Status:** implemented in `e2e_test.sh`; the Python/async path lands in
+  `agent-sandbox-rl` (`AsyncSandboxFleet`).
+- **Open (resolved):** per-phase timers under concurrency → report the region's
+  wall-clock + aggregate sums.
 
 ### 4. Reuse a sandbox for multiple tasks  — DEPRIORITIZED (niche + risky)
 - **Why considered:** claim-per-task churns sandboxes (each claim consumes a warm

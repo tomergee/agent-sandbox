@@ -157,6 +157,33 @@ run); they differ only in **peak idle footprint** — `none` keeps 1 warm at a t
 strategy, not task count: for a fixed `MAX_CONCURRENT`, `naive` peak grows with
 the number of unique images while `sliding` stays ≈ window.
 
+### Parallel claim+exec (opt #3) — 2026-06-19
+
+`e2e_test.sh` now runs the claim+exec region in **waves of `MAX_CONCURRENT`**
+(`-c` / `MAX_CONCURRENT`), and reports the region's wall-clock separately. naive,
+4 astropy tasks:
+
+| MAX_CONCURRENT | claim (Σ) | exec (Σ) | **tasks region (wall)** | TOTAL |
+| --: | --: | --: | --: | --: |
+| 1 | 2.20 | 7.27 | **9.89** | 54.85 |
+| 2 | 2.49 | 7.46 | **5.31** | 53.20 |
+| 4 | 3.00 | 7.30 | **2.81** | 48.11 |
+
+**Findings:**
+1. **The task region scales ~linearly with concurrency:** wall 9.89 → 5.31 →
+   2.81 s for c=1/2/4 (≈1×, 1.9×, 3.5×). Aggregate per-task work (claim+exec Σ ≈
+   9.5 s) is unchanged — concurrency overlaps it, as expected.
+2. **TOTAL improves only modestly (54.9 → 48.1 s)** because TOTAL is now dominated
+   by the **serial** provision (~37 s, kubectl applies) + teardown (~24 s) phases,
+   not the task region. Those are the next ceiling (proxy-POST creates / parallel
+   provision), *not* warm-pool strategy.
+3. **Verified 1:1 needs no deeper pools:** concurrent claims hit *distinct* image
+   pools (1 replica each), so c>1 works without raising replicas; deeper pools
+   matter only when many concurrent claims target the *same* image (pass@k / RL
+   group sampling).
+4. Backward compatible: `MAX_CONCURRENT=1` (default) = serial; `tasks region
+   (wall)` ≈ claim Σ + exec Σ.
+
 ### Pre-pull (opt #1) — findings
 
 DaemonSet pre-pull (`prepull.sh`) vs cold, measured on fresh `django` images
