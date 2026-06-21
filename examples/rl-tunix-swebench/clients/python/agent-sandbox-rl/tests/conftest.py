@@ -30,7 +30,9 @@ class FakeCluster:
     self.active_claims = 0
     self.active_replicas = 0
     self.config = types.SimpleNamespace(weight=weight, max_replicas=max_replicas)
+    self.api_client = MagicMock()
     self.core_api = MagicMock()
+    self.apps_api = MagicMock()
     self.resources = MagicMock()
     self.resources.managed_selector.return_value = "app=agent-sandbox-rl"
     self.resources.list_warmpools.return_value = []

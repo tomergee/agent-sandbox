@@ -12,7 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
+
 from agent_sandbox_rl import ClusterRegistry, FleetConfig, SandboxFleet
+from agent_sandbox_rl.preflight import PreflightReport
+
+
+@pytest.fixture(autouse=True)
+def _stub_preflight(monkeypatch):
+  """Fleet/strategy tests use FakeClusters; the real preflight is tested in
+  test_preflight.py. Here we stub it to always pass."""
+  def ok(cluster, **kw):
+    r = PreflightReport(cluster.name)
+    r.add("stub", True)
+    return r
+  monkeypatch.setattr("agent_sandbox_rl.preflight.preflight_cluster", ok)
 
 
 def _fleet(registry, **cfg):
@@ -29,7 +43,8 @@ def test_load_tasks_and_counts(two_cluster_registry):
 def test_preflight_ok(two_cluster_registry):
   f = _fleet(two_cluster_registry)
   report = f.preflight()
-  assert report == {"a": True, "b": True}
+  assert set(report) == {"a", "b"}
+  assert all(r.ok for r in report.values())
 
 
 def test_plan_routes_across_two_clusters(two_cluster_registry):

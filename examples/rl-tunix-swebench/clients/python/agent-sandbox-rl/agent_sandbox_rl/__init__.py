@@ -37,6 +37,8 @@ from .placement import (
     RoundRobin,
     get_placement,
 )
+from .preflight import PreflightReport, preflight_cluster
+from .prepull import prepull, prepull_delete
 from .resources import Resources
 from .sizing import compute_replicas, plan, recommend_window
 from .sources import JsonlSource, ListSource, Task, TaskSource, to_tasks
@@ -78,6 +80,11 @@ __all__ = [
     # strategies
     "STRATEGIES",
     "process_parallel",
+    # preflight / prepull
+    "PreflightReport",
+    "preflight_cluster",
+    "prepull",
+    "prepull_delete",
     # exceptions
     "FleetError",
     "PreflightError",

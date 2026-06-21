@@ -108,18 +108,31 @@ class SandboxFleet:
     return counts
 
   # --- preflight / plan -------------------------------------------------- #
-  def preflight(self) -> dict[str, bool]:
-    """Verify each cluster is reachable and the extension CRDs are installed."""
-    report: dict[str, bool] = {}
+  def preflight(self) -> dict:
+    """Run full per-cluster preflight (reachability, CRD versions, controller,
+    runtime class, pull secret, namespace). Raises `PreflightError` on any hard
+    failure; returns ``{cluster_name: PreflightReport}``."""
+    from . import preflight as _pf
+    reports = {}
+    failed = {}
     for c in self.registry:
-      try:
-        c.resources.list_warmpools()  # touches the v1beta1 CRD
-      except Exception as e:  # noqa: BLE001
-        raise PreflightError(f"cluster {c.name!r} preflight failed: {e}") from e
-      report[c.name] = True
+      ts = c.template_spec(self.config.template)
+      rep = _pf.preflight_cluster(
+          c, require_runtime_class=ts.runtime_class,
+          image_pull_secret=ts.image_pull_secret, namespace=c.namespace)
+      reports[c.name] = rep
+      for w in rep.warnings:
+        logger.warning("[%s] %s: %s", c.name, w.name, w.detail)
+      if not rep.ok:
+        failed[c.name] = rep
+    if failed:
+      detail = "; ".join(
+          f"{n}: " + ", ".join(f"{ch.name}({ch.detail})" for ch in r.failures)
+          for n, r in failed.items())
+      raise PreflightError(f"preflight failed — {detail}")
     logger.info("Preflight OK on %d cluster(s): %s",
-                len(report), ", ".join(report))
-    return report
+                len(reports), ", ".join(reports))
+    return reports
 
   def plan(self) -> FleetPlan:
     """Assign each unique image to a cluster (placement) and size its pool."""
@@ -206,10 +219,29 @@ class SandboxFleet:
       reps = self._warmed.pop(image, entry.replicas)
       c.active_replicas = max(0, c.active_replicas - reps)
 
-  def setup(self) -> "SandboxFleet":
-    """preflight → plan → ensure templates → start (and wait for) warm pools."""
+  def prepull(self, wait: bool = True) -> None:
+    """Pre-pull each cluster's planned images via a DaemonSet (optional)."""
+    from . import prepull as _pp
+    plan = self.plan_ or self.plan()
+    for cname, entries in plan.by_cluster().items():
+      c = self.registry.get(cname)
+      ts = c.template_spec(self.config.template)
+      _pp.prepull(c, [e.image for e in entries],
+                  node_selector=ts.node_selector,
+                  image_pull_secret=ts.image_pull_secret,
+                  labels=self.config.labels, wait=wait)
+
+  def prepull_delete(self) -> None:
+    from . import prepull as _pp
+    for c in self.registry:
+      _pp.prepull_delete(c)
+
+  def setup(self, prepull: bool = False) -> "SandboxFleet":
+    """preflight → plan → (optional pre-pull) → start (and wait for) warm pools."""
     self.preflight()
     self.plan()
+    if prepull:
+      self.prepull(wait=True)
     self.start_warmpools(wait=True)
     return self
 

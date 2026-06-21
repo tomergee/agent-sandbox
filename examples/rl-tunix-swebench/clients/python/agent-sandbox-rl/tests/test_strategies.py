@@ -12,10 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import threading
 import time
 
+import pytest
+
 from agent_sandbox_rl import FleetConfig, SandboxFleet
+from agent_sandbox_rl.preflight import PreflightReport
+
+
+@pytest.fixture(autouse=True)
+def _stub_preflight(monkeypatch):
+  def ok(cluster, **kw):
+    r = PreflightReport(cluster.name)
+    r.add("stub", True)
+    return r
+  monkeypatch.setattr("agent_sandbox_rl.preflight.preflight_cluster", ok)
 
 
 def _fleet(registry, **cfg):
