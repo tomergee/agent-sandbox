@@ -26,17 +26,76 @@ SandboxTemplate/WarmPool CRUD, sizing, preflight, pre-pull, or batching — ever
 consumer re-implements those. `agent-sandbox-rl` provides them once, generically,
 across clusters.
 
-## Install
+## Setup
+
+### 1. Prerequisites
+
+| Requirement | Notes |
+| :--- | :--- |
+| **Python ≥ 3.10** | The package targets 3.10+. |
+| **A Kubernetes cluster** | With the **Agent Sandbox** controller + **v1beta1 extensions** installed (next step). GKE, kind, or any conformant cluster. |
+| **`kubectl` + a kube context** | `agent-sandbox-rl` reads your kubeconfig; each `ClusterConfig` selects a context by name (`context=`), or uses the ambient one. |
+| **`gke-gcloud-auth-plugin`** | GKE only — must be on `PATH` (`gcloud components install gke-gcloud-auth-plugin`). |
+| **Worker node capacity** | Pods land on the nodes your `TemplateSpec` selects (`node_selector`) and, if set, need a matching `runtime_class` (e.g. `gvisor`). |
+
+### 2. Install the Agent Sandbox controller (cluster side)
+
+`agent-sandbox-rl` orchestrates CRDs; it does not install them. The cluster must
+already serve the **v1beta1** `SandboxTemplate` / `SandboxWarmPool` /
+`SandboxClaim` / `Sandbox` resources. Apply the controller + extensions from a
+[release](https://github.com/kubernetes-sigs/agent-sandbox/releases), then verify:
 
 ```bash
+kubectl get crd | grep agents.x-k8s.io        # expect the 4 CRDs
+kubectl get pods -n agent-sandbox-system       # controller Running
+```
+
+`fleet.preflight()` checks all of this for you and raises `PreflightError` with a
+precise message if something is missing.
+
+### 3. Install the Python packages (client side)
+
+Both the SDK and this package are installed editable from the repo. Run from the
+**repo root**:
+
+```bash
+# core: SDK + this package
+pip install -e clients/python/agentic-sandbox-client \
+            -e examples/rl-tunix-swebench/clients/python/agent-sandbox-rl
+
+# with the SWE-bench dataset loader (recommended for SWE-bench runs)
 pip install -e clients/python/agentic-sandbox-client \
             -e 'examples/rl-tunix-swebench/clients/python/agent-sandbox-rl[swebench]'
 ```
 
-Extras: `swebench` (HF `datasets` for `SweBenchSource`), `tracing`
-(OpenTelemetry for span export), `test` (pytest + pytest-asyncio). Requires
-Python ≥ 3.10, a kube context, and — on GKE — the `gke-gcloud-auth-plugin` on
-`PATH`. (`prometheus-client` is a core dep, so metrics work out of the box.)
+### Dependencies & extras
+
+Core deps (installed automatically): `k8s-agent-sandbox` (the SDK — **reused, not
+forked**), `kubernetes`, `pydantic>=2`, and `prometheus-client` (so metrics work
+out of the box).
+
+| Extra | Pulls in | Use it for |
+| :--- | :--- | :--- |
+| `swebench` | `datasets` (Hugging Face) | `SweBenchSource` — loading SWE-bench task lists. |
+| `async` | `k8s-agent-sandbox[async]`, `kubernetes_asyncio` | `AsyncSandboxFleet` on an asyncio loop. |
+| `tracing` | `opentelemetry-api` / `-sdk` / `-exporter-otlp` (~=1.39) | OpenTelemetry span export (`enable_tracing=True`). No-op when absent. |
+| `test` | `pytest`, `pytest-asyncio`, `pytest-xdist` | Running the mocked unit tests. |
+
+Combine extras with commas, e.g. `…/agent-sandbox-rl[swebench,async,tracing]`.
+
+### 4. Verify
+
+```bash
+# unit tests (mocked, no cluster needed)
+pytest examples/rl-tunix-swebench/clients/python/agent-sandbox-rl
+
+# import + reach your cluster
+python -c "import agent_sandbox_rl as a; print('agent-sandbox-rl', a.__version__)"
+python -c "from agent_sandbox_rl import SandboxFleet, FleetConfig, ClusterConfig; \
+SandboxFleet(FleetConfig(clusters=[ClusterConfig(name='c', namespace='default')])).preflight()"
+```
+
+A clean `preflight()` (no `PreflightError`) means you're ready for the Quickstart.
 
 ## Quickstart
 

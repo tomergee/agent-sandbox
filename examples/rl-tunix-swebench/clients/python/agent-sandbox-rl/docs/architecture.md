@@ -79,6 +79,75 @@ load_tasks ─▶ preflight ─▶ plan ─▶ [prepull] ─▶ start_warmpools 
   `none` warms one size-1 pool per image. All run claim+exec in parallel up to
   `concurrency` (threads sync, `asyncio.gather` async).
 
+## SDK reuse (no fork)
+
+agent-sandbox-rl **reuses the `k8s-agent-sandbox` SDK as-is** — it never forks or
+vendors it. The only deltas are *injected at runtime*:
+
+- **Per-cluster client by attribute injection.** The SDK's
+  `SandboxClient.__init__` builds a default `K8sHelper()` bound to the ambient
+  kube context — fine for one cluster, wrong for many. So each `Cluster` builds
+  its own `ApiClient` via `new_client_from_config(context=…)` and a `K8sHelper`
+  whose `custom_objects_api` / `core_v1_api` point at it, then swaps that helper
+  onto a fresh `SandboxClient` (`cluster.py` `sandbox_client`):
+
+  ```python
+  c = SandboxClient(tracer_config=self.tracer_config)  # or SandboxClient()
+  c.k8s_helper = self.k8s_helper        # context-scoped helper, injected
+  ```
+
+  Result: one upstream `SandboxClient` *instance per cluster*, all running the
+  same SDK code, no fork. (`tracer_config` is the other injection — it makes the
+  SDK emit its `create_claim` / `wait_for_sandbox_ready` spans into the same OTel
+  provider as our fleet spans; see Observability.)
+- **We use the SDK for the claim lifecycle only** — `create_sandbox(...)`,
+  `delete_sandbox(...)`, `terminate()`. We deliberately **bypass** the SDK's
+  `.commands` / `.files` (which require the Sandbox Router) and run commands
+  router-free via the pod exec API (`handle.exec`).
+
+A native `K8sHelper(api_client=…)` parameter would let us drop the attribute
+swap — a candidate upstream improvement, not a blocker.
+
+### acquire → ready → work → release
+
+What happens between "RL framework asks for a sandbox" and "it starts working":
+
+```
+fleet.acquire(task)                                  # agent_sandbox_rl
+  ├─ plan lookup: image → (cluster, warmpool)
+  └─ cluster.sandbox_client.create_sandbox(          # SDK (sandbox_client.py)
+         warmpool, namespace, ready_timeout, labels)
+        ├─ _create_claim()          POST SandboxClaim CR → binds a warm pod
+        ├─ resolve_sandbox_name()   poll claim.status → concrete Sandbox name
+        └─ _wait_for_sandbox_ready() poll Sandbox CR → status=Ready
+      returns SDK Sandbox (claim_name, sandbox_id, get_pod_name/get_pod_ip)
+  └─ wrap → SandboxHandle  ◀── returned to the RL framework HERE
+```
+
+The framework gets control back the moment `create_sandbox` returns — i.e. once
+the claim is **bound to a warm pod** *and* the Sandbox reports **Ready**. From
+that `SandboxHandle` it works in one of two ways, then releases:
+
+```python
+h = fleet.acquire(task)
+try:
+    h.exec(["sh", "-c", "cd /testbed && python -m pytest -q"])  # (a) router-free exec
+    # or, to talk to a server inside the sandbox:
+    url = h.endpoint(8888)        # (b) "<sandbox_id>.<namespace>:8888"
+finally:
+    fleet.release(h)             # SDK terminate() → deletes the claim
+```
+
+There is **no SSH/login step**: `exec` is the Kubernetes pod-exec API straight to
+`pod_name`, and `endpoint(port)` is the sandbox's stable in-cluster DNS name.
+
+**Pod reuse caveat.** A claim does *not* hand back a fresh pod — it binds you to
+an already-running warm pod from the pool (that's why claims are sub-second
+instead of an image-pull). This fleet does **one claim per task** and deletes the
+claim on `release` (the controller then reaps/replaces the pod); the next task
+binds a *different* warm replica. Warm pods are recycled across the pool's
+lifetime by the controller, never handed dirty from one task to the next by us.
+
 ## Connection model
 
 A Sandbox has a **stable in-cluster DNS name** = `sandbox_id` = `handle.hostname`.
