@@ -28,6 +28,7 @@ from .exceptions import (
     NoClusterAvailableError,
     PreflightError,
 )
+from .async_fleet import AsyncSandboxFleet
 from .fleet import FleetPlan, PlanEntry, SandboxFleet
 from .handles import SandboxHandle
 from .placement import (
@@ -74,6 +75,7 @@ __all__ = [
     "ImageAffinity",
     # fleet
     "SandboxFleet",
+    "AsyncSandboxFleet",
     "FleetPlan",
     "PlanEntry",
     "SandboxHandle",
