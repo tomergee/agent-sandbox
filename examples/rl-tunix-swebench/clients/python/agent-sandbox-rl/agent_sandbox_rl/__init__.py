@@ -12,11 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""agent-sandbox-rl: generic, multi-cluster batch orchestration for RL on
-Agent Sandbox. See plans/agent-sandbox-rl-design.md.
+"""agent-sandbox-rl: generic, multi-cluster batch orchestration for RL/eval on
+Agent Sandbox (v1beta1).
 
-Phase 1 surface: config models + replica sizing + constants/exceptions.
-Cluster/resources/fleet land in later phases.
+Configure one or many clusters, load tasks, then either drive the primitives
+(`SandboxFleet`: preflight → plan → warm pools → acquire → release → teardown)
+or the managed runner (`fleet.run(process_fn, strategy, concurrency)`). Async via
+`AsyncSandboxFleet`. A `SandboxHandle` (hostname / endpoint / exec) is the
+integration point for any RL framework.
+
+See README.md, docs/architecture.md, and plans/agent-sandbox-rl-design.md.
 """
 
 from . import constants

@@ -1,0 +1,52 @@
+# Changelog
+
+All notable changes to `agent-sandbox-rl`. Format loosely follows
+[Keep a Changelog](https://keepachangelog.com/); versions are dev-stage.
+
+## [0.1.0.dev0] — unreleased
+
+Initial implementation (design phases 1–7), live-verified on GKE against Agent
+Sandbox `v0.5.0rc1` (v1beta1).
+
+### Added
+- **Config** (`config.py`): `FleetConfig`, `ClusterConfig`, `TemplateSpec`,
+  `ResourceSpec`; deterministic `template_name()`.
+- **Sizing** (`sizing.py`): concurrency-aware `compute_replicas`,
+  `recommend_window`, `plan` (+ `python -m agent_sandbox_rl.sizing` demo).
+- **Constants/exceptions**: v1beta1 groups/versions/plurals incl. the
+  SandboxTemplate/WarmPool ones the SDK lacks; `FleetError` hierarchy.
+- **Multi-cluster** (`cluster.py`): `Cluster` (per-context `ApiClient`, lazy
+  SDK `K8sHelper`/`SandboxClient` via attribute injection) + `ClusterRegistry`.
+- **Resource CRUD** (`resources.py`): SandboxTemplate/SandboxWarmPool create/
+  delete/list + `wait_for_pool_ready` + claim sweep helpers.
+- **Sources** (`sources.py`): `Task`, `TaskSource`, `ListSource`, `JsonlSource`,
+  `to_tasks`.
+- **Placement** (`placement.py`): `RoundRobin`, `LeastLoaded`,
+  `CapacityWeighted`, `ImageAffinity`, capacity-aware, `get_placement`.
+- **Handles** (`handles.py`): `SandboxHandle` with `hostname`, `pod_name`,
+  `pod_ip`, `endpoint`, router-free `exec` (thread-safe), `release`.
+- **Fleet** (`fleet.py`): `SandboxFleet` — `load_tasks`, `preflight`, `plan`,
+  `ensure_templates`, `start_warmpools`, `warm_image`/`unwarm_image`, `prepull`,
+  `setup`, `acquire`/`acquire_batch`, `handles`/`hostnames`/`endpoints`,
+  `release`/`release_all`, `teardown`, `run`, context manager.
+- **Strategies + parallelism** (`strategies.py`): `none`/`naive`/`sliding` +
+  `process_parallel` (bounded ThreadPool; per-task errors captured).
+- **Preflight** (`preflight.py`): per-cluster checks → `PreflightReport`.
+- **Pre-pull** (`prepull.py`): DaemonSet image cache (one init container/image).
+- **Async** (`async_fleet.py`): `AsyncSandboxFleet` — awaitable parity over the
+  sync core (thread-backed; `gather`+`Semaphore`; sync or coroutine `process_fn`).
+- **SWE-bench adapter** (`adapters/swebench.py`): `SweBenchSource` (HF dataset),
+  `swebench_probe`.
+- **Examples**: `examples/run_swebench_fleet.py` (multi-cluster CLI),
+  `examples/rl_integration.md` (tunix / R2E-Gym / TorchRL / SkyRL).
+- **Docs**: README, `docs/architecture.md`, this changelog.
+- **Tests**: 83 mocked unit tests (sizing, config, resources, cluster, sources,
+  placement, fleet incl. 2-cluster routing, strategies/parallel, preflight,
+  prepull, async, swebench).
+
+### Notes / known follow-ups
+- Async backend is a thread-backed wrapper; a native `kubernetes_asyncio` path
+  may replace the internals later (API stays the same).
+- Candidate upstreams into `k8s-agent-sandbox`: SandboxTemplate/WarmPool
+  constants + CRUD, and a `K8sHelper(api_client=...)` parameter.
+- Version is dynamic/dev (`0.1.0.dev0`); switch to setuptools-scm on release.
