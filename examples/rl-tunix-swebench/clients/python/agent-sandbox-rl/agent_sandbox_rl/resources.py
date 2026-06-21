@@ -175,6 +175,12 @@ class Resources:
   def list_templates(self, label_selector: str | None = None) -> list[str]:
     return self._list(constants.TEMPLATES_PLURAL, label_selector)
 
+  def list_claims(self, label_selector: str | None = None) -> list[str]:
+    return self._list(constants.CLAIMS_PLURAL, label_selector)
+
+  def delete_claim(self, name: str) -> None:
+    self._delete(constants.CLAIMS_PLURAL, name, "SandboxClaim")
+
   def managed_selector(self) -> str:
     return f"{constants.MANAGED_BY_LABEL}={constants.MANAGED_BY_VALUE}"
 

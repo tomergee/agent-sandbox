@@ -35,6 +35,7 @@ class FakeCluster:
     self.resources.managed_selector.return_value = "app=agent-sandbox-rl"
     self.resources.list_warmpools.return_value = []
     self.resources.list_templates.return_value = []
+    self.resources.list_claims.return_value = []
     self.resources.ensure_template.return_value = True
     self.resources.wait_for_pool_ready.return_value = True
     self._seq = 0
@@ -49,7 +50,8 @@ class FakeCluster:
   def template_spec(self, base):
     return base
 
-  def _make_sandbox(self, warmpool=None, namespace=None, sandbox_ready_timeout=None):
+  def _make_sandbox(self, warmpool=None, namespace=None,
+                    sandbox_ready_timeout=None, labels=None, **_):
     self._seq += 1
     s = MagicMock()
     s.claim_name = f"claim-{self.name}-{self._seq}"

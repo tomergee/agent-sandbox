@@ -228,7 +228,8 @@ class SandboxFleet:
 
     sandbox = cluster.sandbox_client.create_sandbox(
         warmpool=pool, namespace=cluster.namespace,
-        sandbox_ready_timeout=self.config.ready_timeout)
+        sandbox_ready_timeout=self.config.ready_timeout,
+        labels=dict(self.config.labels))
     pod = sandbox.get_pod_name()
     try:
       pod_ip = sandbox.get_pod_ip()
@@ -272,9 +273,12 @@ class SandboxFleet:
   def teardown(self, delete_namespace: bool = False) -> None:
     """Release all claims and delete every resource this fleet created."""
     self.release_all()
-    sel = None
     for c in self.registry:
       sel = c.resources.managed_selector()
+      # Sweep any stray claims first (defensive: untracked/leaked claims keep
+      # their adopted sandbox alive even after the pool is gone).
+      for claim in c.resources.list_claims(label_selector=sel):
+        c.resources.delete_claim(claim)
       for pool in c.resources.list_warmpools(label_selector=sel):
         c.resources.delete_warmpool(pool)
       for tmpl in c.resources.list_templates(label_selector=sel):
