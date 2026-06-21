@@ -173,12 +173,12 @@ per-cluster routable endpoints (Gateway/LoadBalancer).
   sweeps stray claims before pools/templates so a leaked claim can't keep its
   adopted sandbox alive.
 
-## Optimization findings (from the rl-tunix-swebench example)
+## Optimization findings (from the rl-sandbox-scripts example)
 
 The strategies/sizing/prepull here encode measured results — see the example's
-[`plans/optimizations.md`](../../../plans/optimizations.md),
-[`plans/performance.md`](../../../plans/performance.md), and
-[`plans/image-analysis.md`](../../../plans/image-analysis.md): warm-pool claims
+[`optimizations.md`](optimizations.md),
+[`performance.md`](performance.md), and
+[`image-analysis.md`](image-analysis.md): warm-pool claims
 are sub-second; image **layer sharing** makes pre-pull pay off per repo-family;
 concurrency-aware sizing slashes idle footprint; parallel claim+exec scales the
 task region ~linearly; the SWE-Bench-Verified set is 500 images / 12 families

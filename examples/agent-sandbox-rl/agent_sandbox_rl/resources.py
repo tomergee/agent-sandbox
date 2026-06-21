@@ -17,7 +17,7 @@
 This is the piece the `k8s-agent-sandbox` SDK does not provide. A `Resources`
 instance is bound to one cluster's CustomObjectsApi + namespace (so multi-cluster
 just means one `Resources` per cluster). Ported and generalized from the
-rl-tunix-swebench example's `warmpool.py`.
+rl-sandbox-scripts example's `warmpool.py`.
 """
 
 from __future__ import annotations

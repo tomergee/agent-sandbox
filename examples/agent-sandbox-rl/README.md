@@ -3,7 +3,7 @@
 Generic, **multi-cluster** batch orchestration for running SWE-bench-style RL and
 evaluation workloads on [Agent Sandbox](https://agent-sandbox.sigs.k8s.io/).
 
-It builds on [`k8s-agent-sandbox`](../../../../clients/python/agentic-sandbox-client)
+It builds on [`k8s-agent-sandbox`](../../clients/python/agentic-sandbox-client)
 and turns the full run lifecycle into a small, framework-agnostic API:
 
 > **load images → configure cluster(s) → compute replicas → preflight → warm
@@ -15,7 +15,7 @@ point is a `SandboxHandle` (stable hostname, endpoint, router-free `exec`). Sync
 **and** async; low-level **primitives** *and* a managed **runner**; one cluster
 or many. Targets the **v1beta1 ("beta")** Agent Sandbox API.
 
-- Design: [`../../plans/agent-sandbox-rl-design.md`](../../plans/agent-sandbox-rl-design.md)
+- Design: [`docs/design.md`](docs/design.md)
 - Architecture & lifecycle: [`docs/architecture.md`](docs/architecture.md)
 - RL-framework integration: [`examples/rl_integration.md`](examples/rl_integration.md)
 
@@ -61,11 +61,11 @@ Both the SDK and this package are installed editable from the repo. Run from the
 ```bash
 # core: SDK + this package
 pip install -e clients/python/agentic-sandbox-client \
-            -e examples/rl-tunix-swebench/clients/python/agent-sandbox-rl
+            -e examples/agent-sandbox-rl
 
 # with the SWE-bench dataset loader (recommended for SWE-bench runs)
 pip install -e clients/python/agentic-sandbox-client \
-            -e 'examples/rl-tunix-swebench/clients/python/agent-sandbox-rl[swebench]'
+            -e 'examples/agent-sandbox-rl[swebench]'
 ```
 
 ### Dependencies & extras
@@ -87,7 +87,7 @@ Combine extras with commas, e.g. `…/agent-sandbox-rl[swebench,async,tracing]`.
 
 ```bash
 # unit tests (mocked, no cluster needed)
-pytest examples/rl-tunix-swebench/clients/python/agent-sandbox-rl
+pytest examples/agent-sandbox-rl
 
 # import + reach your cluster
 python -c "import agent_sandbox_rl as a; print('agent-sandbox-rl', a.__version__)"
@@ -271,7 +271,7 @@ Three layers, mirroring the `k8s-agent-sandbox` SDK so traces/metrics interopera
 ## Testing
 
 ```bash
-pytest examples/rl-tunix-swebench/clients/python/agent-sandbox-rl   # mocked, no cluster
+pytest examples/agent-sandbox-rl   # mocked, no cluster
 ```
 
 ## Status

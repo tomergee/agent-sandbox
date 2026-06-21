@@ -8,7 +8,7 @@ The `k8s-agent-sandbox` Python client is **single-sandbox, single-cluster**:
 `SandboxClient.create_sandbox(warmpool=...)` claims one pre-existing warm pool on
 the ambient kube context; it has **no** SandboxTemplate/SandboxWarmPool CRUD, no
 batch orchestration, no sizing, no preflight, no pre-pull, and **no notion of
-multiple clusters**. Every consumer (this `rl-tunix-swebench` example, tunix
+multiple clusters**. Every consumer (this `rl-sandbox-scripts` example, tunix
 `eval_deepswe.py`, the R2E-Gym `kubernetes-sandbox` backend) re-implements this.
 
 Goal: a **new, separate pip package `agent-sandbox-rl`** (import
@@ -29,7 +29,7 @@ Generalizes the cluster-verified code in this example (`warmpool.py`,
 ## Packaging
 
 All code lives under this example:
-`examples/rl-tunix-swebench/clients/python/agent-sandbox-rl/`.
+`examples/agent-sandbox-rl/`.
 - `pyproject.toml`: `name = "agent-sandbox-rl"`, import package `agent_sandbox_rl`,
   setuptools-scm version (mirror the SDK). Deps: `k8s-agent-sandbox`,
   `kubernetes`, `pydantic`. Extras: `swebench` → `datasets`; `async` →
@@ -39,7 +39,7 @@ All code lives under this example:
 ## Package layout
 
 ```
-examples/rl-tunix-swebench/clients/python/agent-sandbox-rl/
+examples/agent-sandbox-rl/
   pyproject.toml, README.md
   agent_sandbox_rl/
     __init__.py          # public exports
@@ -172,7 +172,7 @@ patterns (`unittest.mock`, `pytest-asyncio`).
 
 ## Verification (live)
 
-1. `pip install -e clients/python/agentic-sandbox-client -e 'examples/rl-tunix-swebench/clients/python/agent-sandbox-rl[swebench]'`; `pytest` green (sync+async).
+1. `pip install -e clients/python/agentic-sandbox-client -e 'examples/agent-sandbox-rl[swebench]'`; `pytest` green (sync+async).
 2. **Single-cluster smoke** (the GKE cluster we use): `SweBenchSource(limit=2)` →
    `from_kubeconfig` → `preflight` → `setup(naive)` → `acquire_batch` →
    `hostnames()` → `/testbed` probe → `teardown`; namespace empty after.

@@ -228,7 +228,7 @@ DaemonSet pre-pull (`prepull.sh`) vs cold, measured on fresh `django` images
 ## How to reproduce a row
 
 ```bash
-cd agent-sandbox/examples/rl-tunix-swebench
+cd agent-sandbox/examples/rl-sandbox-scripts
 NODE_SELECTOR_KEY=cloud.google.com/gke-nodepool NODE_SELECTOR_VAL=standard-pool \
   ./e2e_test.sh -s <none|naive|sliding> -n <tasks> [-w <window>] -y
 ```
