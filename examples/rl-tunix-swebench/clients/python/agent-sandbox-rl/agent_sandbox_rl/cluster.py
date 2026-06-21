@@ -56,6 +56,7 @@ class Cluster:
         self.custom_api, self.core_api, self.namespace, labels=labels)
     self._k8s_helper = None
     self._sandbox_client = None
+    self.tracer_config = None                 # optional SDK SandboxTracerConfig
     # Placement / capacity bookkeeping (used by later phases).
     self.active_replicas = 0
     self.active_claims = 0
@@ -76,7 +77,8 @@ class Cluster:
     """SDK SandboxClient using this cluster's K8sHelper (lazy, injected)."""
     if self._sandbox_client is None:
       from k8s_agent_sandbox import SandboxClient
-      c = SandboxClient()
+      c = (SandboxClient(tracer_config=self.tracer_config)
+           if self.tracer_config is not None else SandboxClient())
       c.k8s_helper = self.k8s_helper
       self._sandbox_client = c
     return self._sandbox_client

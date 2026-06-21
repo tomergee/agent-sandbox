@@ -33,9 +33,10 @@ pip install -e clients/python/agentic-sandbox-client \
             -e 'examples/rl-tunix-swebench/clients/python/agent-sandbox-rl[swebench]'
 ```
 
-Extras: `swebench` (HF `datasets` for `SweBenchSource`), `test` (pytest +
-pytest-asyncio). Requires Python ≥ 3.10, a kube context, and — on GKE — the
-`gke-gcloud-auth-plugin` on `PATH`.
+Extras: `swebench` (HF `datasets` for `SweBenchSource`), `tracing`
+(OpenTelemetry for span export), `test` (pytest + pytest-asyncio). Requires
+Python ≥ 3.10, a kube context, and — on GKE — the `gke-gcloud-auth-plugin` on
+`PATH`. (`prometheus-client` is a core dep, so metrics work out of the box.)
 
 ## Quickstart
 
@@ -149,6 +150,55 @@ caller's concern (see the integration guide).
 - **Cleanup**: everything created is labeled `app=agent-sandbox-rl`; `teardown`
   sweeps claims → pools → templates (defensive against stray claims).
 
+## Observability
+
+Three layers, mirroring the `k8s-agent-sandbox` SDK so traces/metrics interoperate:
+
+1. **`RunReport`** — always-on, dependency-free. `fleet.run(...)` records per-phase
+   timings (preflight, plan, create_warmpool, wait_pool_ready, claim, process,
+   release, teardown), claims, tasks ok/err, and warm-replica total+peak.
+
+   ```python
+   results = fleet.run(probe, strategy="naive")
+   print(fleet.report.summary())     # benchmark table (also logged at INFO)
+   data = fleet.report.to_dict()     # JSON-friendly
+   ```
+   ```text
+   ── Run report (strategy=naive) ──
+     preflight              1.35s  (n=1, max=1.35s)
+     wait_pool_ready        8.44s  (n=2, max=4.22s)
+     claim                  5.66s  (n=4, max=1.69s)
+     process                1.56s  (n=4, max=0.40s)
+     ...
+     TOTAL                 14.71s
+     claims=4  tasks=4ok/0err  warm_replicas total=3 peak=3
+   ```
+
+2. **Prometheus metrics** (opt-in, default **on**) — `asrl_*` series on the default
+   registry: `asrl_phase_latency_seconds`, `asrl_task_latency_seconds`,
+   `asrl_run_latency_seconds` (histograms), `asrl_claims_total`,
+   `asrl_tasks_total` (counters), `asrl_warm_replicas` (gauge). Labels are
+   bounded: `phase · cluster · family · strategy · status` (`family` is the
+   repo family, not the per-image tag). Expose them with the built-in helper:
+
+   ```python
+   from agent_sandbox_rl import serve_metrics
+   server, _ = serve_metrics(port=9095)   # GET /metrics ; caller owns lifetime
+   ```
+
+3. **OpenTelemetry spans** (opt-in, default off; needs the `tracing` extra) —
+   reuse the SDK's tracer/provider so fleet `asrl.*` spans nest with the SDK's
+   `create_claim`/`wait_for_sandbox_ready` spans in one trace.
+
+   ```python
+   FleetConfig(..., observability=ObservabilityConfig(
+       enable_metrics=True, enable_tracing=True))
+   ```
+
+   (`asyncio.to_thread` doesn't auto-propagate OTel context — under
+   `AsyncSandboxFleet`, metrics + `RunReport` are exact; nested SDK spans are a
+   documented follow-up.)
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
@@ -167,8 +217,9 @@ pytest examples/rl-tunix-swebench/clients/python/agent-sandbox-rl   # mocked, no
 
 ## Status
 
-Phases 1–7 implemented and live-verified on GKE (agent-sandbox `v0.5.0rc1`):
+Phases 1–8 implemented and live-verified on GKE (agent-sandbox `v0.5.0rc1`):
 config/sizing, multi-cluster, template/warm-pool CRUD, sources/placement/handles,
 fleet primitives, strategies + parallel execution, preflight, pre-pull, async,
-and the SWE-bench adapter + example. See [`docs/architecture.md`](docs/architecture.md)
+the SWE-bench adapter + example, and observability (RunReport + Prometheus +
+OpenTelemetry). See [`docs/architecture.md`](docs/architecture.md)
 and [`CHANGELOG.md`](CHANGELOG.md).

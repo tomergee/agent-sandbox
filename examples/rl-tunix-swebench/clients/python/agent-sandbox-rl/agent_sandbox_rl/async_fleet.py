@@ -31,7 +31,10 @@ from __future__ import annotations
 import asyncio
 import inspect
 import logging
+import time
 from typing import Awaitable, Callable
+
+from .observability import repo_family
 
 from .config import FleetConfig
 from .fleet import SandboxFleet
@@ -65,6 +68,10 @@ class AsyncSandboxFleet:
   @property
   def plan_(self):
     return self._fleet.plan_
+
+  @property
+  def report(self):
+    return self._fleet.report
 
   def load_tasks(self, source) -> list[Task]:
     return self._fleet.load_tasks(source)
@@ -134,18 +141,28 @@ class AsyncSandboxFleet:
   async def _process_parallel(self, tasks, process_fn, concurrency):
     sem = asyncio.Semaphore(max(1, concurrency))
     results = [None] * len(tasks)
+    obs = self._fleet._obs
 
     async def _one(i, task):
+      fam = repo_family(task)
+      t0 = time.monotonic()
+      status = "ok"
+      cluster = "-"
       async with sem:
         try:
           handle = await self.acquire(task)
+          cluster = handle.cluster_name
           try:
-            results[i] = await self._call(process_fn, task, handle)
+            with obs.phase("process", cluster=cluster, family=fam):
+              results[i] = await self._call(process_fn, task, handle)
           finally:
             await self.release(handle)
         except Exception as e:  # noqa: BLE001
+          status = "error"
           logger.error("task %s failed: %s", task.id, e)
           results[i] = e
+        finally:
+          obs.task_done(cluster, fam, status, time.monotonic() - t0)
 
     await asyncio.gather(*(_one(i, t) for i, t in enumerate(tasks)))
     return results
@@ -180,17 +197,23 @@ class AsyncSandboxFleet:
     concurrent claim+exec. ``process_fn`` may be sync or a coroutine function.
     """
     conc = concurrency or self.config.max_concurrent
-    if strategy == "naive":
-      await self.setup()
-      try:
-        return await self._process_parallel(self.tasks, process_fn, conc)
-      finally:
-        await self.teardown()
-    if strategy == "sliding":
-      window = self.config.window_size or recommend_window(
-          self.image_counts(), self.config.max_concurrent,
-          self.config.max_warmpool_size)
-      return await self._run_windowed(process_fn, conc, max(1, window))
-    if strategy == "none":
-      return await self._run_windowed(process_fn, conc, 1, replicas_override=1)
-    raise ValueError(f"unknown strategy '{strategy}'")
+    obs = self._fleet._obs
+    with obs.run(strategy) as report:
+      self._fleet.report = report
+      if strategy == "naive":
+        await self.setup()
+        try:
+          results = await self._process_parallel(self.tasks, process_fn, conc)
+        finally:
+          await self.teardown()
+      elif strategy == "sliding":
+        window = self.config.window_size or recommend_window(
+            self.image_counts(), self.config.max_concurrent,
+            self.config.max_warmpool_size)
+        results = await self._run_windowed(process_fn, conc, max(1, window))
+      elif strategy == "none":
+        results = await self._run_windowed(process_fn, conc, 1, replicas_override=1)
+      else:
+        raise ValueError(f"unknown strategy '{strategy}'")
+    logger.info("\n%s", report.summary())
+    return results

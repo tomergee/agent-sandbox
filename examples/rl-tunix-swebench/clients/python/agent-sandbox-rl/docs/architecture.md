@@ -52,6 +52,16 @@ injection (no SDK fork).
 - **`prepull.py`** — DaemonSet pre-pull (`prepull` / `prepull_delete`).
 - **`fleet.py`** — `SandboxFleet`; **`strategies.py`** — `process_parallel` +
   the three strategies; **`async_fleet.py`** — `AsyncSandboxFleet`.
+- **`observability.py`** — `Observer` (the sink the fleet holds), `RunReport`
+  (always-on per-phase aggregates), `repo_family` (label-cardinality bound),
+  `serve_metrics`. Each fleet phase is wrapped in `observer.phase(...)`, which
+  times the block, observes the Prometheus `asrl_*` histogram, folds the
+  duration into the current `RunReport` (lock-guarded for parallel workers), and
+  — when tracing is on — opens an `asrl.<phase>` span. The per-cluster
+  `SandboxClient` gets our `trace_service_name` so its claim/exec spans share the
+  one provider and nest under the fleet spans. All Prometheus/OTel work is
+  guarded by the `ObservabilityConfig` flags, so disabled layers are no-ops while
+  `RunReport` stays always-on.
 
 ## Lifecycle
 

@@ -34,6 +34,7 @@ from .cluster import Cluster, ClusterRegistry
 from .config import ClusterConfig, FleetConfig
 from .exceptions import PreflightError
 from .handles import SandboxHandle
+from .observability import Observer, repo_family
 from .placement import get_placement
 from .sources import Task, to_tasks
 
@@ -86,6 +87,27 @@ class SandboxFleet:
     self._handles: list[SandboxHandle] = []
     self._warmed: dict[str, int] = {}        # image -> replicas currently warmed
     self._lock = threading.Lock()            # guards bookkeeping under parallel run
+    self._obs = Observer(self.config.observability)
+    self.report = None                       # set by run()/the Observer
+    if self.config.observability.enable_tracing:
+      self._enable_sdk_tracing()
+
+  def _enable_sdk_tracing(self) -> None:
+    """Point each cluster's SDK SandboxClient at our tracer/provider so the SDK's
+    create_claim/wait_ready spans nest under our fleet spans."""
+    try:
+      from k8s_agent_sandbox.models import SandboxTracerConfig
+      tc = SandboxTracerConfig(
+          enable_tracing=True,
+          trace_service_name=self.config.observability.trace_service_name)
+      for c in self.registry:
+        c.tracer_config = tc
+    except Exception:  # noqa: BLE001  (SDK without tracing support)
+      pass
+
+  @property
+  def observer(self):
+    return self._obs
 
   @staticmethod
   def _default_registry(config: FleetConfig) -> ClusterRegistry:
@@ -112,6 +134,10 @@ class SandboxFleet:
     """Run full per-cluster preflight (reachability, CRD versions, controller,
     runtime class, pull secret, namespace). Raises `PreflightError` on any hard
     failure; returns ``{cluster_name: PreflightReport}``."""
+    with self._obs.phase("preflight"):
+      return self._preflight()
+
+  def _preflight(self) -> dict:
     from . import preflight as _pf
     reports = {}
     failed = {}
@@ -136,6 +162,10 @@ class SandboxFleet:
 
   def plan(self) -> FleetPlan:
     """Assign each unique image to a cluster (placement) and size its pool."""
+    with self._obs.phase("plan"):
+      return self._plan()
+
+  def _plan(self) -> FleetPlan:
     counts = self.image_counts()
     # image -> cluster (each unique image placed once).
     assigned: "collections.OrderedDict[str, Cluster]" = collections.OrderedDict()
@@ -181,13 +211,17 @@ class SandboxFleet:
     plan = self.plan_ or self.plan()
     for e in plan.entries:
       c = self.registry.get(e.cluster)
-      c.resources.ensure_template(
-          e.image, e.template, c.template_spec(self.config.template))
-      c.resources.create_warmpool(e.pool, e.template, e.replicas)
+      fam = repo_family(e.image)
+      with self._obs.phase("create_warmpool", cluster=e.cluster, family=fam):
+        c.resources.ensure_template(
+            e.image, e.template, c.template_spec(self.config.template))
+        c.resources.create_warmpool(e.pool, e.template, e.replicas)
       c.active_replicas += e.replicas
+      self._obs.warm_add(e.cluster, e.replicas)
       if wait:
-        c.resources.wait_for_pool_ready(
-            e.pool, e.replicas, timeout=self.config.ready_timeout)
+        with self._obs.phase("wait_pool_ready", cluster=e.cluster, family=fam):
+          c.resources.wait_for_pool_ready(
+              e.pool, e.replicas, timeout=self.config.ready_timeout)
 
   def warm_image(self, image: str, *, replicas_override: int | None = None,
                  wait: bool = True) -> None:
@@ -197,15 +231,19 @@ class SandboxFleet:
       raise KeyError(f"image not in plan: {image}")
     c = self.registry.get(entry.cluster)
     reps = replicas_override if replicas_override is not None else entry.replicas
-    c.resources.ensure_template(
-        image, entry.template, c.template_spec(self.config.template))
-    c.resources.create_warmpool(entry.pool, entry.template, reps)
+    fam = repo_family(image)
+    with self._obs.phase("create_warmpool", cluster=entry.cluster, family=fam):
+      c.resources.ensure_template(
+          image, entry.template, c.template_spec(self.config.template))
+      c.resources.create_warmpool(entry.pool, entry.template, reps)
     with self._lock:
       c.active_replicas += reps
       self._warmed[image] = reps
+    self._obs.warm_add(entry.cluster, reps)
     if wait:
-      c.resources.wait_for_pool_ready(
-          entry.pool, reps, timeout=self.config.ready_timeout)
+      with self._obs.phase("wait_pool_ready", cluster=entry.cluster, family=fam):
+        c.resources.wait_for_pool_ready(
+            entry.pool, reps, timeout=self.config.ready_timeout)
 
   def unwarm_image(self, image: str) -> None:
     """Tear down one image's pool + template."""
@@ -218,18 +256,20 @@ class SandboxFleet:
     with self._lock:
       reps = self._warmed.pop(image, entry.replicas)
       c.active_replicas = max(0, c.active_replicas - reps)
+    self._obs.warm_remove(entry.cluster, reps)
 
   def prepull(self, wait: bool = True) -> None:
     """Pre-pull each cluster's planned images via a DaemonSet (optional)."""
     from . import prepull as _pp
     plan = self.plan_ or self.plan()
-    for cname, entries in plan.by_cluster().items():
-      c = self.registry.get(cname)
-      ts = c.template_spec(self.config.template)
-      _pp.prepull(c, [e.image for e in entries],
-                  node_selector=ts.node_selector,
-                  image_pull_secret=ts.image_pull_secret,
-                  labels=self.config.labels, wait=wait)
+    with self._obs.phase("prepull"):
+      for cname, entries in plan.by_cluster().items():
+        c = self.registry.get(cname)
+        ts = c.template_spec(self.config.template)
+        _pp.prepull(c, [e.image for e in entries],
+                    node_selector=ts.node_selector,
+                    image_pull_secret=ts.image_pull_secret,
+                    labels=self.config.labels, wait=wait)
 
   def prepull_delete(self) -> None:
     from . import prepull as _pp
@@ -258,15 +298,17 @@ class SandboxFleet:
       with self._lock:
         cluster.active_replicas += 1
 
-    sandbox = cluster.sandbox_client.create_sandbox(
-        warmpool=pool, namespace=cluster.namespace,
-        sandbox_ready_timeout=self.config.ready_timeout,
-        labels=dict(self.config.labels))
-    pod = sandbox.get_pod_name()
-    try:
-      pod_ip = sandbox.get_pod_ip()
-    except Exception:  # noqa: BLE001
-      pod_ip = None
+    fam = repo_family(task)
+    with self._obs.phase("claim", cluster=cluster.name, family=fam):
+      sandbox = cluster.sandbox_client.create_sandbox(
+          warmpool=pool, namespace=cluster.namespace,
+          sandbox_ready_timeout=self.config.ready_timeout,
+          labels=dict(self.config.labels))
+      pod = sandbox.get_pod_name()
+      try:
+        pod_ip = sandbox.get_pod_ip()
+      except Exception:  # noqa: BLE001
+        pod_ip = None
     handle = SandboxHandle(
         task=task, cluster_name=cluster.name, claim_name=sandbox.claim_name,
         sandbox_id=sandbox.sandbox_id, pod_name=pod, hostname=sandbox.sandbox_id,
@@ -274,6 +316,7 @@ class SandboxFleet:
     with self._lock:
       cluster.active_claims += 1
       self._handles.append(handle)
+    self._obs.claim(cluster.name, "ok")
     return handle
 
   def acquire_batch(self, tasks: list[Task]) -> list[SandboxHandle]:
@@ -289,7 +332,8 @@ class SandboxFleet:
     return [h.endpoint(port) for h in self._handles]
 
   def release(self, handle: SandboxHandle) -> None:
-    handle.release()
+    with self._obs.phase("release", cluster=handle.cluster_name):
+      handle.release()
     with self._lock:
       if handle in self._handles:
         self._handles.remove(handle)
@@ -304,6 +348,10 @@ class SandboxFleet:
   # --- teardown ---------------------------------------------------------- #
   def teardown(self, delete_namespace: bool = False) -> None:
     """Release all claims and delete every resource this fleet created."""
+    with self._obs.phase("teardown"):
+      self._teardown(delete_namespace)
+
+  def _teardown(self, delete_namespace: bool) -> None:
     self.release_all()
     for c in self.registry:
       sel = c.resources.managed_selector()
@@ -322,6 +370,7 @@ class SandboxFleet:
           c.core_api.delete_namespace(c.namespace)
         except Exception:  # noqa: BLE001
           pass
+    self._obs.warm_reset()
     self.plan_ = None
 
   def __enter__(self) -> "SandboxFleet":
@@ -341,4 +390,8 @@ class SandboxFleet:
     if strategy not in STRATEGIES:
       raise ValueError(f"unknown strategy '{strategy}'; choose from {sorted(STRATEGIES)}")
     conc = concurrency or self.config.max_concurrent
-    return STRATEGIES[strategy](self, process_fn, conc)
+    with self._obs.run(strategy) as report:
+      self.report = report
+      results = STRATEGIES[strategy](self, process_fn, conc)
+    logger.info("\n%s", report.summary())
+    return results

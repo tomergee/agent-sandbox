@@ -193,6 +193,18 @@ patterns (`unittest.mock`, `pytest-asyncio`).
 6. `async_resources.py` + `async_fleet.py` parity (+async tests).
 7. `adapters/swebench.py` + `examples/run_swebench_fleet.py` + `rl_integration.md`.
 8. Live verification (single + multi-cluster + async + parity).
+9. **Documentation** — thorough, complete package docs: module/class/function
+   docstrings (Google style) across the whole API; a rich `README.md`
+   (concepts, quickstart, multi-cluster, strategies, sizing, RL-framework
+   integration, API reference table, troubleshooting); a `docs/` guide
+   (architecture + lifecycle + the optimization findings); runnable docstring
+   examples; and `CHANGELOG.md`.
+10. **Observability** (`observability.py`) — always-on `RunReport` (per-phase
+    count/total/max + claims/tasks/warm peak; `summary()`/`to_dict()`); opt-in
+    Prometheus `asrl_*` series (labels `phase·cluster·family·strategy·status`,
+    `repo_family` cardinality bound) with a `serve_metrics()` helper; opt-in
+    OpenTelemetry spans reusing the SDK's tracer so fleet spans nest with the
+    SDK's claim/exec spans. Mirrors the SDK's observability pattern.
 
 Notes: keep core deps minimal (HF `datasets` only via the `swebench` extra); the
 template/warmpool constants + CRUD and a `K8sHelper(api_client=...)` param are

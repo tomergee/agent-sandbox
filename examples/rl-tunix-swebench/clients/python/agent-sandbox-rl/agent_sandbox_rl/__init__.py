@@ -27,7 +27,13 @@ See README.md, docs/architecture.md, and plans/agent-sandbox-rl-design.md.
 from . import constants
 from .adapters.swebench import SWEBENCH_PROBE, SweBenchSource, swebench_probe
 from .cluster import Cluster, ClusterRegistry, build_api_client
-from .config import ClusterConfig, FleetConfig, ResourceSpec, TemplateSpec
+from .config import (
+    ClusterConfig,
+    FleetConfig,
+    ObservabilityConfig,
+    ResourceSpec,
+    TemplateSpec,
+)
 from .exceptions import (
     CapacityError,
     FleetError,
@@ -37,6 +43,7 @@ from .exceptions import (
 from .async_fleet import AsyncSandboxFleet
 from .fleet import FleetPlan, PlanEntry, SandboxFleet
 from .handles import SandboxHandle
+from .observability import Observer, RunReport, repo_family, serve_metrics
 from .placement import (
     CapacityWeighted,
     ImageAffinity,
@@ -58,6 +65,7 @@ __all__ = [
     "ClusterConfig",
     "TemplateSpec",
     "ResourceSpec",
+    "ObservabilityConfig",
     # sizing
     "compute_replicas",
     "recommend_window",
@@ -92,6 +100,11 @@ __all__ = [
     # strategies
     "STRATEGIES",
     "process_parallel",
+    # observability
+    "Observer",
+    "RunReport",
+    "repo_family",
+    "serve_metrics",
     # preflight / prepull
     "PreflightReport",
     "preflight_cluster",

@@ -49,6 +49,14 @@ class TemplateSpec(BaseModel):
   extra_pod_spec: dict = Field(default_factory=dict)
 
 
+class ObservabilityConfig(BaseModel):
+  """Observability toggles. RunReport is always on; metrics/tracing opt-in."""
+
+  enable_metrics: bool = True              # Prometheus `asrl_*` on default registry
+  enable_tracing: bool = False             # OpenTelemetry spans (needs the 'tracing' extra)
+  trace_service_name: str = "agent-sandbox-rl"
+
+
 class ClusterConfig(BaseModel):
   """A single target cluster. Defaults to the ambient kube context."""
 
@@ -91,6 +99,7 @@ class FleetConfig(BaseModel):
   template: TemplateSpec = Field(default_factory=TemplateSpec)
   template_name_prefix: str = "r2e-img-"
   labels: dict[str, str] = Field(default_factory=lambda: dict(constants.DEFAULT_LABELS))
+  observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
 
   @field_validator("max_concurrent", "max_warmpool_size")
   @classmethod

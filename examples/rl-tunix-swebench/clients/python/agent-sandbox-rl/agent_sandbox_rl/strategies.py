@@ -23,9 +23,11 @@ phase does the same with asyncio.
 from __future__ import annotations
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from . import sizing
+from .observability import repo_family
 
 logger = logging.getLogger("agent_sandbox_rl.strategies")
 
@@ -39,11 +41,23 @@ def process_parallel(fleet, tasks, process_fn, concurrency):
   results = [None] * len(tasks)
 
   def _one(task):
-    handle = fleet.acquire(task)
+    fam = repo_family(task)
+    t0 = time.monotonic()
+    status = "ok"
+    cluster = "-"
     try:
-      return process_fn(task, handle)
+      handle = fleet.acquire(task)
+      cluster = handle.cluster_name
+      try:
+        with fleet._obs.phase("process", cluster=cluster, family=fam):
+          return process_fn(task, handle)
+      finally:
+        fleet.release(handle)
+    except BaseException:
+      status = "error"
+      raise
     finally:
-      fleet.release(handle)
+      fleet._obs.task_done(cluster, fam, status, time.monotonic() - t0)
 
   if concurrency <= 1:
     for i, t in enumerate(tasks):
