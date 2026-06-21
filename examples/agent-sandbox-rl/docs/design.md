@@ -47,7 +47,7 @@ examples/agent-sandbox-rl/
     cluster.py           # Cluster (per-context clients) + ClusterRegistry; multi-cluster kube config loading
     placement.py         # Placement protocol + RoundRobin, LeastLoaded, CapacityWeighted, ImageAffinity
     constants.py         # TEMPLATE/WARMPOOL group/version/plurals (missing from the SDK)
-    resources.py         # SYNC SandboxTemplate + SandboxWarmPool CRUD + wait_for_pool_ready (per-cluster)
+    resources.py         # SYNC SandboxTemplate + SandboxWarmPool CRUD + wait_for_pool_ready (watch-based, per-cluster)
     async_resources.py   # async variant
     sizing.py            # compute_replicas, recommend_window, plan (ported)
     sources.py           # Task model + TaskSource protocol; ListSource, JsonlSource
@@ -201,11 +201,14 @@ patterns (`unittest.mock`, `pytest-asyncio`).
    (architecture + lifecycle + the optimization findings); runnable docstring
    examples; and `CHANGELOG.md`.
 10. **Observability** (`observability.py`) — always-on `RunReport` (per-phase
-    count/total/max + claims/tasks/warm peak; `summary()`/`to_dict()`); opt-in
-    Prometheus `asrl_*` series (labels `phase·cluster·family·strategy·status`,
-    `repo_family` cardinality bound) with a `serve_metrics()` helper; opt-in
-    OpenTelemetry spans reusing the SDK's tracer so fleet spans nest with the
-    SDK's claim/exec spans. Mirrors the SDK's observability pattern.
+    count/total/max + claims/tasks/warm peak + an `environment` block from
+    `describe_environment()`; `summary()`/`to_dict()`, persisted to `REPORT_DIR`
+    by the example runner); opt-in Prometheus `asrl_*` series (labels
+    `phase·cluster·family·strategy·status`, `repo_family` cardinality bound) with a
+    `serve_metrics()` helper; opt-in OpenTelemetry spans reusing the SDK's tracer
+    so fleet spans nest with the SDK's claim/exec spans. Mirrors the SDK's
+    observability pattern. (`wait_for_pool_ready` is watch-based for near-exact
+    readiness timing.)
 
 Notes: keep core deps minimal (HF `datasets` only via the `swebench` extra); the
 template/warmpool constants + CRUD and a `K8sHelper(api_client=...)` param are

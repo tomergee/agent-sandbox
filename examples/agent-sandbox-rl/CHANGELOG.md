@@ -59,9 +59,10 @@ Sandbox `v0.5.0rc1` (v1beta1).
 - **Examples**: `examples/run_swebench_fleet.py` (multi-cluster CLI),
   `examples/rl_integration.md` (tunix / R2E-Gym / TorchRL / SkyRL).
 - **Docs**: README, `docs/architecture.md`, this changelog.
-- **Tests**: 94 mocked unit tests (sizing, config, resources, cluster, sources,
-  placement, fleet incl. 2-cluster routing, strategies/parallel, preflight,
-  prepull, async, swebench, observability).
+- **Tests**: 96 mocked unit tests (sizing, config, resources incl. watch-based
+  pool readiness, cluster, sources, placement, fleet incl. 2-cluster routing,
+  strategies/parallel, preflight, prepull, async, swebench, observability incl.
+  the RunReport environment block).
 
 ### Notes / known follow-ups
 - Async backend is a thread-backed wrapper; a native `kubernetes_asyncio` path

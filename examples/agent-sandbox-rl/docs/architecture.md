@@ -38,8 +38,9 @@ injection (no SDK fork).
   `K8sHelper`/`SandboxClient`; placement/capacity bookkeeping) and
   `ClusterRegistry`.
 - **`resources.py`** — `Resources`: `ensure_template`, `create_warmpool`,
-  `wait_for_pool_ready`, `delete_*`, `list_*` (label-scoped). The missing SDK
-  piece.
+  `wait_for_pool_ready` (Kubernetes **watch** on the WarmPool — readiness detected
+  at the `readyReplicas` event, no fixed poll grid; reconnects + short re-check
+  fallback on drops), `delete_*`, `list_*` (label-scoped). The missing SDK piece.
 - **`sizing.py`** — `compute_replicas`, `recommend_window`, `plan`.
 - **`sources.py`** — `Task`, `TaskSource`, `ListSource`, `JsonlSource`,
   `to_tasks`. **`adapters/swebench.py`** — `SweBenchSource` + `swebench_probe`.
@@ -61,7 +62,11 @@ injection (no SDK fork).
   `SandboxClient` gets our `trace_service_name` so its claim/exec spans share the
   one provider and nest under the fleet spans. All Prometheus/OTel work is
   guarded by the `ObservabilityConfig` flags, so disabled layers are no-ops while
-  `RunReport` stays always-on.
+  `RunReport` stays always-on. `run()` also attaches per-cluster details
+  (`SandboxFleet.describe_environment()`) to `report.environment`; the report's
+  `summary()`/`to_dict()` render it, and `examples/run_swebench_fleet.py` persists
+  timestamped reports to `REPORT_DIR` (see
+  [`../performance_reports/README.md`](../performance_reports/README.md)).
 
 ## Lifecycle
 

@@ -206,6 +206,9 @@ caller's concern (see the integration guide).
   secret. Hard failures raise `PreflightError`; soft issues are warnings.
 - **Pre-pull** (`fleet.prepull()` / `setup(prepull=True)`): a DaemonSet caches
   task images on every node so warm pools skip the multi-GB pull.
+- **Watch-based readiness**: `wait_for_pool_ready` watches the WarmPool and
+  returns at the `readyReplicas` event (near-exact timing, no fixed poll grid),
+  reconnecting and falling back to a short re-check on watch drops.
 - **Cleanup**: everything created is labeled `app=agent-sandbox-rl`; `teardown`
   sweeps claims → pools → templates (defensive against stray claims).
 
@@ -215,7 +218,9 @@ Three layers, mirroring the `k8s-agent-sandbox` SDK so traces/metrics interopera
 
 1. **`RunReport`** — always-on, dependency-free. `fleet.run(...)` records per-phase
    timings (preflight, plan, create_warmpool, wait_pool_ready, claim, process,
-   release, teardown), claims, tasks ok/err, and warm-replica total+peak.
+   release, teardown), claims, tasks ok/err, warm-replica total+peak, and an
+   `environment` block (cluster context/namespace/k8s-version/nodes/node-pools/
+   instance-types/region, via `fleet.describe_environment()`).
 
    ```python
    results = fleet.run(probe, strategy="naive")
@@ -224,6 +229,9 @@ Three layers, mirroring the `k8s-agent-sandbox` SDK so traces/metrics interopera
    ```
    ```text
    ── Run report (strategy=naive) ──
+     environment:
+       default: context=(ambient)  namespace=rl-tunix-swebench  k8s_version=v1.35...
+                nodes=11  node_pools=[e2-pool,...]  region=us-central2
      preflight              1.35s  (n=1, max=1.35s)
      wait_pool_ready        8.44s  (n=2, max=4.22s)
      claim                  5.66s  (n=4, max=1.69s)
@@ -232,6 +240,12 @@ Three layers, mirroring the `k8s-agent-sandbox` SDK so traces/metrics interopera
      TOTAL                 14.71s
      claims=4  tasks=4ok/0err  warm_replicas total=3 peak=3
    ```
+
+   `examples/run_swebench_fleet.py` writes a timestamped `.txt` + `.json` report
+   to `REPORT_DIR` when that env var is set. See
+   [`performance_reports/README.md`](performance_reports/README.md) for a full
+   breakdown of every phase and metric. (Note: per-phase totals are *summed*
+   durations, so under concurrency they exceed the wall-clock `TOTAL`.)
 
 2. **Prometheus metrics** (opt-in, default **on**) — `asrl_*` series on the default
    registry: `asrl_phase_latency_seconds`, `asrl_task_latency_seconds`,
