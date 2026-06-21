@@ -65,7 +65,7 @@ Sandbox `v0.5.0rc1` (v1beta1).
   `SweBenchSource(keep_row=True)` stores the full dataset row under
   `metadata["ds"]` (required by the adapter). New `r2egym` extra.
 - **Examples**: `examples/run_swebench_fleet.py` (multi-cluster CLI),
-  `examples/deepswe_eval_nb.py` (no-model R2E-Gym-on-warm-pools demo, jupytext),
+  `examples/deepswe_eval_nb.ipynb` (no-model R2E-Gym-on-warm-pools demo),
   `examples/rl_integration.md` (tunix / R2E-Gym / TorchRL / SkyRL).
 - **Docs**: README, `docs/architecture.md`, this changelog.
 - **Tests**: 104 mocked unit tests (sizing, config, resources incl. watch-based

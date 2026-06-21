@@ -84,8 +84,9 @@ Contracts:
 To wire it into tunix's `SWEEnv` directly, subclass it to build a `FleetRepoEnv`
 instead of `RepoEnv` (acquire in `_initial_observation`, release in `close`); the
 fleet then replaces `eval_deepswe.py`'s inline warm-pool management.
-`examples/deepswe_eval_nb.py` is a runnable, **no-model** demo of this path (stub
-policy) — it falls back to a router-free `exec` probe when R2E-Gym isn't installed.
+[`examples/deepswe_eval_nb.ipynb`](deepswe_eval_nb.ipynb) is a runnable,
+**no-model** demo of this path (stub policy) — it falls back to a router-free
+`exec` probe when R2E-Gym isn't installed.
 
 Requires the `r2egym` extra (install R2E-Gym from its checkout:
 `pip install -e path/to/R2E-Gym`).
