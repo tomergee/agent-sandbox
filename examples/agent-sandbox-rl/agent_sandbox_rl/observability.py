@@ -102,6 +102,7 @@ class RunReport:
   tasks_err: int = 0
   warm_total: int = 0
   peak_warm: int = 0
+  environment: dict = field(default_factory=dict)   # per-cluster details
 
   _ORDER = ("preflight", "plan", "prepull", "create_warmpool", "wait_pool_ready",
             "claim", "process", "release", "teardown")
@@ -136,10 +137,29 @@ class RunReport:
         "tasks_err": self.tasks_err,
         "warm_replicas_total": self.warm_total,
         "warm_replicas_peak": self.peak_warm,
+        "environment": self.environment,
     }
+
+  @staticmethod
+  def _fmt_env(info: dict) -> str:
+    order = ("context", "namespace", "k8s_version", "nodes", "node_pools",
+             "instance_types", "region")
+    parts = []
+    for k in order:
+      if k in info and info[k] not in (None, [], ""):
+        v = info[k]
+        if isinstance(v, list):
+          v = "[" + ",".join(str(x) for x in v) + "]"
+        parts.append(f"{k}={v}")
+    return "  ".join(parts)
 
   def summary(self) -> str:
     lines = [f"── Run report (strategy={self.strategy}) ──"]
+    if self.environment:
+      lines.append("  environment:")
+      for cname, info in self.environment.items():
+        lines.append(f"    {cname}: {self._fmt_env(info)}")
+      lines.append("  " + "-" * 40)
     for name, (count, total, mx) in self._ordered():
       lines.append(f"  {name:<18} {total:8.2f}s  (n={count}, max={mx:.2f}s)")
     lines.append("  " + "-" * 40)

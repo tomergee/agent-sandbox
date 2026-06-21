@@ -29,6 +29,8 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from kubernetes import client
+
 from . import sizing
 from .cluster import Cluster, ClusterRegistry
 from .config import ClusterConfig, FleetConfig
@@ -392,6 +394,43 @@ class SandboxFleet:
     conc = concurrency or self.config.max_concurrent
     with self._obs.run(strategy) as report:
       self.report = report
+      try:
+        report.environment = self.describe_environment()
+      except Exception:  # noqa: BLE001 — environment is best-effort
+        logger.debug("could not collect environment", exc_info=True)
       results = STRATEGIES[strategy](self, process_fn, conc)
     logger.info("\n%s", report.summary())
     return results
+
+  def describe_environment(self) -> dict:
+    """Best-effort per-cluster details (context, namespace, k8s version, nodes,
+    node pools, instance types, region) for the RunReport. Never raises."""
+    def _lbl(node, key):
+      return (node.metadata.labels or {}).get(key)
+
+    env = {}
+    for c in self.registry:
+      info = {"context": c.config.context or "(ambient)", "namespace": c.namespace}
+      try:
+        info["k8s_version"] = client.VersionApi(c.api_client).get_code().git_version
+      except Exception:  # noqa: BLE001
+        pass
+      try:
+        nodes = c.core_api.list_node().items
+        info["nodes"] = len(nodes)
+        pools = sorted({_lbl(n, "cloud.google.com/gke-nodepool")
+                        for n in nodes if _lbl(n, "cloud.google.com/gke-nodepool")})
+        types = sorted({_lbl(n, "node.kubernetes.io/instance-type")
+                        for n in nodes if _lbl(n, "node.kubernetes.io/instance-type")})
+        regions = sorted({_lbl(n, "topology.kubernetes.io/region")
+                          for n in nodes if _lbl(n, "topology.kubernetes.io/region")})
+        if pools:
+          info["node_pools"] = pools
+        if types:
+          info["instance_types"] = types
+        if regions:
+          info["region"] = regions[0] if len(regions) == 1 else regions
+      except Exception:  # noqa: BLE001
+        pass
+      env[c.name] = info
+    return env

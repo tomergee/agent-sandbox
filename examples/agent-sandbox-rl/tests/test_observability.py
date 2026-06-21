@@ -78,6 +78,20 @@ def test_runreport_aggregation():
   assert d["tasks_err"] == 1
 
 
+def test_runreport_environment_in_summary_and_dict():
+  r = RunReport("naive")
+  r.environment = {"rl": {"context": "ctx-a", "namespace": "ns",
+                          "k8s_version": "v1.30.1", "nodes": 8,
+                          "node_pools": ["e2-pool"],
+                          "instance_types": ["e2-standard-4"],
+                          "region": "us-central2"}}
+  d = r.to_dict()
+  assert d["environment"]["rl"]["nodes"] == 8
+  s = r.summary()
+  assert "environment:" in s
+  assert "e2-pool" in s and "us-central2" in s and "v1.30.1" in s
+
+
 def test_runreport_summary_orders_known_phases():
   r = RunReport("naive")
   r.add_phase("teardown", 0.5)

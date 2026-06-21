@@ -18,7 +18,14 @@ Sandbox `v0.5.0rc1` (v1beta1).
 - **Multi-cluster** (`cluster.py`): `Cluster` (per-context `ApiClient`, lazy
   SDK `K8sHelper`/`SandboxClient` via attribute injection) + `ClusterRegistry`.
 - **Resource CRUD** (`resources.py`): SandboxTemplate/SandboxWarmPool create/
-  delete/list + `wait_for_pool_ready` + claim sweep helpers.
+  delete/list + `wait_for_pool_ready` + claim sweep helpers. `wait_for_pool_ready`
+  uses a Kubernetes **watch** (event-driven, near-exact readiness timing, no fixed
+  poll grid; reconnects + falls back to a short re-check on drops).
+- **Environment in RunReport**: `SandboxFleet.describe_environment()` collects
+  per-cluster context/namespace/k8s-version/nodes/node-pools/instance-types/region;
+  `run()` attaches it to `report.environment` (rendered in `summary()`/`to_dict()`).
+  `examples/run_swebench_fleet.py` writes a timestamped `.txt`+`.json` report to
+  `REPORT_DIR` when set.
 - **Sources** (`sources.py`): `Task`, `TaskSource`, `ListSource`, `JsonlSource`,
   `to_tasks`.
 - **Placement** (`placement.py`): `RoundRobin`, `LeastLoaded`,

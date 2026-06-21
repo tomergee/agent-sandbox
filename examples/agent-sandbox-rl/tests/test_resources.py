@@ -104,6 +104,27 @@ def test_wait_for_pool_ready_times_out():
   assert r.wait_for_pool_ready("pool-x", 1, timeout=0) is False
 
 
+def test_wait_for_pool_ready_via_watch(monkeypatch):
+  # Not ready on the fast-path GET; a watch MODIFIED event flips it to ready.
+  r = _resources()
+  r.custom_api.get_namespaced_custom_object.return_value = {"status": {"readyReplicas": 0}}
+
+  class FakeWatch:
+    def stream(self, func, **kw):
+      return [
+          {"type": "MODIFIED", "object": {"metadata": {"name": "other"},
+                                          "status": {"readyReplicas": 9}}},   # ignored
+          {"type": "MODIFIED", "object": {"metadata": {"name": "pool-x"},
+                                          "status": {"readyReplicas": 2}}},
+      ]
+
+    def stop(self):
+      pass
+
+  monkeypatch.setattr("agent_sandbox_rl.resources.watch.Watch", lambda: FakeWatch())
+  assert r.wait_for_pool_ready("pool-x", 2, timeout=5) is True
+
+
 def test_list_uses_label_selector():
   r = _resources()
   r.custom_api.list_namespaced_custom_object.return_value = {

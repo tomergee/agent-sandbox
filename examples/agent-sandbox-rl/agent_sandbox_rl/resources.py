@@ -25,7 +25,7 @@ from __future__ import annotations
 import logging
 import time
 
-from kubernetes import client
+from kubernetes import client, watch
 
 from . import constants
 from .config import TemplateSpec
@@ -150,23 +150,62 @@ class Resources:
     return int((obj.get("status") or {}).get("readyReplicas", 0) or 0)
 
   def wait_for_pool_ready(self, name: str, expected: int,
-                          timeout: int = 600, poll_interval: float = 4.0) -> bool:
-    """Block until the pool reports ``readyReplicas >= expected``. Returns False
-    on timeout."""
+                          timeout: int = 600, poll_interval: float = 1.0) -> bool:
+    """Block until the pool reports ``readyReplicas >= expected``.
+
+    Uses a Kubernetes **watch** on the WarmPool so readiness is detected at the
+    status-update event (near-exact timing — no fixed poll grid). Falls back to a
+    short re-check + ``poll_interval`` backoff if the watch drops/reconnects, and
+    is bounded by ``timeout``. Returns False on timeout.
+    """
     deadline = time.monotonic() + timeout
-    while True:
-      try:
-        ready = self.pool_ready_replicas(name)
-      except client.ApiException:
-        ready = 0
-      logger.info("WarmPool '%s': %d/%d ready", name, ready, expected)
-      if ready >= expected:
+    # Fast path: already ready (also covers the readiness that landed between
+    # pool creation and the watch starting).
+    try:
+      if self.pool_ready_replicas(name) >= expected:
         return True
-      if time.monotonic() >= deadline:
-        logger.error("WarmPool '%s' not ready (%d/%d) within %ds",
-                     name, ready, expected, timeout)
-        return False
-      time.sleep(poll_interval)
+    except client.ApiException:
+      pass
+
+    w = watch.Watch()
+    try:
+      while time.monotonic() < deadline:
+        remaining = max(1, int(deadline - time.monotonic()))
+        try:
+          for event in w.stream(
+              self.custom_api.list_namespaced_custom_object,
+              group=constants.GROUP, version=constants.VERSION,
+              namespace=self.namespace, plural=constants.WARMPOOLS_PLURAL,
+              timeout_seconds=remaining):
+            obj = event.get("object") or {}
+            if (obj.get("metadata") or {}).get("name") != name:
+              continue                       # other pools / bookmarks
+            ready = int((obj.get("status") or {}).get("readyReplicas", 0) or 0)
+            logger.info("WarmPool '%s': %d/%d ready", name, ready, expected)
+            if ready >= expected:
+              return True
+          # server closed the watch window; the while-loop re-opens it
+        except Exception as e:  # noqa: BLE001 — stale resourceVersion / drop
+          logger.debug("watch on '%s' interrupted (%s); re-checking", name, e)
+          try:
+            if self.pool_ready_replicas(name) >= expected:
+              return True
+          except client.ApiException:
+            pass
+          time.sleep(poll_interval)
+    finally:
+      w.stop()
+
+    ready = 0
+    try:
+      ready = self.pool_ready_replicas(name)
+    except client.ApiException:
+      pass
+    if ready >= expected:
+      return True
+    logger.error("WarmPool '%s' not ready (%d/%d) within %ds",
+                 name, ready, expected, timeout)
+    return False
 
   # --- listing / helpers ------------------------------------------------- #
   def list_warmpools(self, label_selector: str | None = None) -> list[str]:
