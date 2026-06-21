@@ -20,6 +20,7 @@ Cluster/resources/fleet land in later phases.
 """
 
 from . import constants
+from .adapters.swebench import SWEBENCH_PROBE, SweBenchSource, swebench_probe
 from .cluster import Cluster, ClusterRegistry, build_api_client
 from .config import ClusterConfig, FleetConfig, ResourceSpec, TemplateSpec
 from .exceptions import (
@@ -62,6 +63,10 @@ __all__ = [
     "ListSource",
     "JsonlSource",
     "to_tasks",
+    # swebench adapter
+    "SweBenchSource",
+    "swebench_probe",
+    "SWEBENCH_PROBE",
     # cluster / resources
     "Resources",
     "Cluster",
