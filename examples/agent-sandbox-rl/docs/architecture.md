@@ -43,7 +43,14 @@ injection (no SDK fork).
   fallback on drops), `delete_*`, `list_*` (label-scoped). The missing SDK piece.
 - **`sizing.py`** — `compute_replicas`, `recommend_window`, `plan`.
 - **`sources.py`** — `Task`, `TaskSource`, `ListSource`, `JsonlSource`,
-  `to_tasks`. **`adapters/swebench.py`** — `SweBenchSource` + `swebench_probe`.
+  `to_tasks`. **`adapters/swebench.py`** — `SweBenchSource` (+ `keep_row` for the
+  full dataset row) + `swebench_probe`. **`adapters/r2egym.py`** —
+  `make_fleet_repo_env`/`FleetRepoEnv`/`FleetDockerRuntime`: subclass R2E-Gym's
+  `RepoEnv`/`DockerRuntime` to **bind** a fleet-warmed pod (override
+  `_start_kubernetes_sandbox` to read the handle's pod via a per-runtime
+  `CoreV1Api`, `_stop_kubernetes_sandbox` to a no-op so the fleet owns the pod,
+  and exec/file-copy to forward the handle's namespace). Lazy/guarded so the core
+  imports without R2E-Gym; serves tunix deepswe transitively.
 - **`placement.py`** — `RoundRobin`, `LeastLoaded`, `CapacityWeighted`,
   `ImageAffinity` (capacity-aware) + `get_placement`.
 - **`handles.py`** — `SandboxHandle` (`hostname`, `pod_name`, `pod_ip`,

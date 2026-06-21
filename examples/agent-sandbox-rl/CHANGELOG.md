@@ -56,12 +56,22 @@ Sandbox `v0.5.0rc1` (v1beta1).
   `async_fleet.py`; `ObservabilityConfig` on `FleetConfig.observability`;
   `fleet.report` after `run()`. `prometheus-client` is a dep; OTel via the
   `tracing` extra (no-op when absent).
+- **R2E-Gym adapter** (`adapters/r2egym.py`): `make_fleet_repo_env`,
+  `FleetRepoEnv`, `FleetDockerRuntime`, `r2egym_command_files` — bind a
+  fleet-pre-warmed pod into R2E-Gym's `RepoEnv` (overriding the cold
+  `_start_kubernetes_sandbox`, no-op teardown so the fleet owns the pod, and
+  namespace-forwarding exec/copy) so SWE-bench rollouts reuse warm pools and tunix
+  deepswe benefits transitively. Lazy/guarded (core imports without R2E-Gym).
+  `SweBenchSource(keep_row=True)` stores the full dataset row under
+  `metadata["ds"]` (required by the adapter). New `r2egym` extra.
 - **Examples**: `examples/run_swebench_fleet.py` (multi-cluster CLI),
+  `examples/deepswe_eval_nb.py` (no-model R2E-Gym-on-warm-pools demo, jupytext),
   `examples/rl_integration.md` (tunix / R2E-Gym / TorchRL / SkyRL).
 - **Docs**: README, `docs/architecture.md`, this changelog.
-- **Tests**: 96 mocked unit tests (sizing, config, resources incl. watch-based
+- **Tests**: 104 mocked unit tests (sizing, config, resources incl. watch-based
   pool readiness, cluster, sources, placement, fleet incl. 2-cluster routing,
-  strategies/parallel, preflight, prepull, async, swebench, observability incl.
+  strategies/parallel, preflight, prepull, async, swebench incl. `keep_row`,
+  r2egym adapter (guard + injected-fake-base override logic), observability incl.
   the RunReport environment block).
 
 ### Notes / known follow-ups

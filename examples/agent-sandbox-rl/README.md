@@ -77,6 +77,7 @@ out of the box).
 | Extra | Pulls in | Use it for |
 | :--- | :--- | :--- |
 | `swebench` | `datasets` (Hugging Face) | `SweBenchSource` — loading SWE-bench task lists. |
+| `r2egym` | `r2egym` (from its checkout) | R2E-Gym adapter — run R2E-Gym/tunix `RepoEnv` rollouts on warm pods (`adapters.r2egym`). |
 | `async` | `k8s-agent-sandbox[async]`, `kubernetes_asyncio` | `AsyncSandboxFleet` on an asyncio loop. |
 | `tracing` | `opentelemetry-api` / `-sdk` / `-exporter-otlp` (~=1.39) | OpenTelemetry span export (`enable_tracing=True`). No-op when absent. |
 | `test` | `pytest`, `pytest-asyncio`, `pytest-xdist` | Running the mocked unit tests. |
@@ -159,6 +160,7 @@ python run_swebench_fleet.py
 | **SandboxHandle** | A claimed sandbox: `hostname`, `pod_name`, `pod_ip`, `endpoint(port)`, `exec(cmd)`, `release()`. |
 | **Placement** | Which cluster serves an image: `round-robin`, `least-loaded`, `capacity-weighted`, `image-affinity`. |
 | **Strategy** | *When* pools exist: `none`, `naive`, `sliding`. |
+| **Adapters** | Framework glue: `adapters.swebench` (dataset → tasks), `adapters.r2egym` (`make_fleet_repo_env` binds a warm pod into R2E-Gym/tunix `RepoEnv`). |
 
 ## Warm-pool strategies
 

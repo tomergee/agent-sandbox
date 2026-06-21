@@ -46,6 +46,15 @@ def test_swebench_source_offset_limit(monkeypatch):
   assert [t.id for t in tasks] == ["django__django-10097"]
 
 
+def test_swebench_source_keep_row(monkeypatch):
+  _install_fake_datasets(monkeypatch, ROWS)
+  tasks = SweBenchSource(keep_row=True).load()
+  assert tasks[0].metadata["ds"] == ROWS[0]            # full row for the r2egym adapter
+  assert tasks[0].metadata["repo"] == "astropy/astropy"
+  # default stays lean
+  assert "ds" not in SweBenchSource().load()[0].metadata
+
+
 def test_swebench_probe_runs_probe_command():
   handle = MagicMock()
   handle.exec.return_value = "READY pod-xyz\nabc123 commit\n"

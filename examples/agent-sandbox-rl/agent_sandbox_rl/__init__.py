@@ -118,3 +118,12 @@ __all__ = [
 ]
 
 __version__ = "0.1.0.dev0"
+
+
+# R2E-Gym adapter helpers are exposed lazily — they need the optional `r2egym`
+# extra. Kept out of `__all__` so `import *` never forces the optional import.
+def __getattr__(name):
+  if name in ("make_fleet_repo_env", "r2egym_command_files"):
+    from .adapters import r2egym
+    return getattr(r2egym, name)
+  raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

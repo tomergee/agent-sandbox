@@ -45,17 +45,22 @@ class SweBenchSource:
     limit: max tasks (0 = all).
     offset: skip the first N rows.
     image_field / id_field: dataset column names.
+    keep_row: also store the full dataset row under ``Task.metadata["ds"]``.
+      Off by default to keep tasks lean; required by the R2E-Gym adapter
+      (`adapters.r2egym`), whose env/reward grading needs the whole row.
   """
 
   def __init__(self, dataset: str = SWEBENCH_DATASET, split: str = "test",
                limit: int = 0, offset: int = 0,
-               image_field: str = "docker_image", id_field: str = "instance_id"):
+               image_field: str = "docker_image", id_field: str = "instance_id",
+               keep_row: bool = False):
     self.dataset = dataset
     self.split = split
     self.limit = limit
     self.offset = offset
     self.image_field = image_field
     self.id_field = id_field
+    self.keep_row = keep_row
 
   def load(self) -> list[Task]:
     try:
@@ -70,12 +75,13 @@ class SweBenchSource:
       rows = rows[self.offset:]
     if self.limit:
       rows = rows[:self.limit]
-    tasks = [
-        Task(id=str(r.get(self.id_field, i)), image=r[self.image_field],
-             metadata={"repo": r.get("repo", ""),
-                       "base_commit": r.get("base_commit", "")})
-        for i, r in enumerate(rows)
-    ]
+    tasks = []
+    for i, r in enumerate(rows):
+      meta = {"repo": r.get("repo", ""), "base_commit": r.get("base_commit", "")}
+      if self.keep_row:
+        meta["ds"] = dict(r)        # full row for the R2E-Gym adapter / reward grading
+      tasks.append(Task(id=str(r.get(self.id_field, i)),
+                        image=r[self.image_field], metadata=meta))
     logger.info("Loaded %d SWE-bench tasks (%d unique images)",
                 len(tasks), len({t.image for t in tasks}))
     return tasks

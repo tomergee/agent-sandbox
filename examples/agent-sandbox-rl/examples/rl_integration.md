@@ -36,28 +36,59 @@ class SweEnv:
 fleet.teardown()
 ```
 
-## tunix (`eval_deepswe.py`)
+## R2E-Gym + tunix deepswe (the real path)
 
-Replace the hand-rolled warm-pool block in `run_evaluation` with the fleet:
+tunix deepswe doesn't provision sandboxes itself — it goes through R2E-Gym:
+
+```
+tunix SWEEnv (swe_env.py)  →  R2E-Gym RepoEnv(backend="kubernetes-sandbox")  →  DockerRuntime  →  a sandbox
+```
+
+R2E-Gym's `kubernetes-sandbox` backend **cold-creates** a sandbox per env, and
+`eval_deepswe.py` reimplements warm pools inline (against the old `v1alpha1` CRDs:
+`TEMPLATE_STR`, `create_warmpool`/`delete_warmpool`, the `active_warmpools` sliding
+loop in `run_evaluation`). The `agent-sandbox-rl` **R2E-Gym adapter** replaces all
+of that: it binds a fleet-pre-warmed pod (v1beta1, sized, observed) into R2E-Gym's
+`RepoEnv`, so the same `RepoEnv`/reward path runs unchanged on warm pools.
 
 ```python
+from agent_sandbox_rl import SandboxFleet, FleetConfig, ClusterConfig
+from agent_sandbox_rl.adapters.swebench import SweBenchSource
+from agent_sandbox_rl.adapters.r2egym import make_fleet_repo_env, r2egym_command_files
+
 fleet = SandboxFleet(FleetConfig(clusters=[ClusterConfig(namespace=NS)],
                                  max_concurrent=MAX_CONCURRENT))
-fleet.load_tasks([{"id": e["instance_id"], "image": e["docker_image"]} for e in entries])
-results = fleet.run(my_rollout_fn, strategy="sliding", concurrency=MAX_CONCURRENT)
+fleet.load_tasks(SweBenchSource(limit=500, keep_row=True))   # keep_row REQUIRED
+
+def rollout(task, handle):                    # one warm pod per task
+    env = make_fleet_repo_env(handle, command_files=r2egym_command_files())
+    try:
+        instruction = env.get_task_instruction()
+        # ... your agent loop: obs, _, done, _ = env.step(action) ...
+        return env.compute_reward()           # real R2E-Gym grading
+    finally:
+        env.close()                           # no-op teardown; fleet owns the pod
+
+results = fleet.run(rollout, strategy="sliding", concurrency=MAX_CONCURRENT)
 ```
 
-## R2E-Gym (`kubernetes-sandbox` backend)
+Contracts:
+- **`keep_row=True`** stores the full dataset row under `task.metadata["ds"]`,
+  which R2E-Gym's env + reward grading require.
+- **Namespace flows from the handle** (`ClusterConfig.namespace`) into R2E-Gym's
+  exec/file-copy automatically — no need to match R2E-Gym's hardcoded `default`.
+- **The fleet owns the pod.** `env.close()` never deletes it; `fleet.run` /
+  `fleet.release(handle)` does. One episode per acquire (for a fresh pod,
+  release + acquire).
 
-`DockerRuntime._start_kubernetes_sandbox` becomes a fleet acquire; exec stays
-router-free:
+To wire it into tunix's `SWEEnv` directly, subclass it to build a `FleetRepoEnv`
+instead of `RepoEnv` (acquire in `_initial_observation`, release in `close`); the
+fleet then replaces `eval_deepswe.py`'s inline warm-pool management.
+`examples/deepswe_eval_nb.py` is a runnable, **no-model** demo of this path (stub
+policy) — it falls back to a router-free `exec` probe when R2E-Gym isn't installed.
 
-```python
-self._handle = fleet.acquire(Task(id=instance_id, image=docker_image))
-# self.container_name = self._handle.pod_name   # for kubectl exec
-out = self._handle.exec(cmd)
-# teardown: self._handle.release()
-```
+Requires the `r2egym` extra (install R2E-Gym from its checkout:
+`pip install -e path/to/R2E-Gym`).
 
 ## TorchRL / SkyRL
 
