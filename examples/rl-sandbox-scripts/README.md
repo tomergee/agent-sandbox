@@ -341,6 +341,10 @@ here pair with two infra optimizations from the rl-tunix design:
 - **Autoscaling** — combine with cluster autoscaler / capacity buffers, or scale
   pools on claim-rate metrics (see [`../hpa-swp-scaling`](../hpa-swp-scaling)).
 
+Measured numbers and the working notes behind these live in
+[`performance.md`](./performance.md), [`optimizations.md`](./optimizations.md),
+and [`image-analysis.md`](./image-analysis.md).
+
 ## Relation to the rl-tunix branches
 
 This example is a self-contained re-implementation of the warm-pool integration

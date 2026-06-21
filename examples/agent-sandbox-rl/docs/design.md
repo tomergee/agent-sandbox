@@ -181,7 +181,8 @@ patterns (`unittest.mock`, `pytest-asyncio`).
    pools/claims, `hostnames()` are cluster-qualified, teardown routes correctly.
 4. **Async** parity smoke (concurrent acquire+exec).
 5. **Parity:** `examples/run_swebench_fleet.py -s sliding -n 10` reproduces
-   `performance.md` v2 (claims=10, sized pools, ~115 s).
+   [`performance.md`](../../rl-sandbox-scripts/performance.md) v2 (claims=10,
+   sized pools, ~115 s).
 
 ## Implementation order
 

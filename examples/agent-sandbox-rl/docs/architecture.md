@@ -175,10 +175,11 @@ per-cluster routable endpoints (Gateway/LoadBalancer).
 
 ## Optimization findings (from the rl-sandbox-scripts example)
 
-The strategies/sizing/prepull here encode measured results — see the example's
-[`optimizations.md`](optimizations.md),
-[`performance.md`](performance.md), and
-[`image-analysis.md`](image-analysis.md): warm-pool claims
+The strategies/sizing/prepull here encode measured results from the
+`rl-sandbox-scripts` prototype — see
+[`optimizations.md`](../../rl-sandbox-scripts/optimizations.md),
+[`performance.md`](../../rl-sandbox-scripts/performance.md), and
+[`image-analysis.md`](../../rl-sandbox-scripts/image-analysis.md): warm-pool claims
 are sub-second; image **layer sharing** makes pre-pull pay off per repo-family;
 concurrency-aware sizing slashes idle footprint; parallel claim+exec scales the
 task region ~linearly; the SWE-Bench-Verified set is 500 images / 12 families
