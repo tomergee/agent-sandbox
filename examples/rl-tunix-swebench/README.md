@@ -38,7 +38,7 @@ sandboxes at scale.
 ```mermaid
 flowchart LR
     Learner["rl-tunix learner / eval"]
-    subgraph Orchestration["run_swebench.py"]
+    subgraph Orchestration["rl_simple_scripts/run_swebench.py"]
       Strategy["warm-pool strategy<br/>(none / naive / sliding)"]
     end
     Learner --> Strategy
@@ -87,7 +87,7 @@ task images from Docker Hub.
 
 **For the Python driver + notebook (Options A & C):**
 - Python ≥ 3.10.
-- `pip install -r requirements.txt` (installs `k8s-agent-sandbox`, `kubernetes`,
+- `pip install -r rl_simple_scripts/requirements.txt` (installs `k8s-agent-sandbox`, `kubernetes`,
   `datasets` from PyPI — no extra repo needed).
 
 **For the bash e2e test (Option D):**
@@ -106,12 +106,12 @@ task images from Docker Hub.
 
 The multi-GB image pull is what gates warm-pool readiness. Since the task set is
 known up front, you can pre-pull the images onto every node first with
-[`prepull.sh`](./prepull.sh) (a DaemonSet, one init container per image):
+[`prepull.sh`](./rl_simple_scripts/prepull.sh) (a DaemonSet, one init container per image):
 
 ```bash
-./prepull.sh -n 4                       # pre-pull the first 4 dataset images
+./rl_simple_scripts/prepull.sh -n 4                       # pre-pull the first 4 dataset images
 # ...run the driver / e2e as usual; warm pools now skip the pull...
-./prepull.sh --delete                   # remove the DaemonSet (cached images stay)
+./rl_simple_scripts/prepull.sh --delete                   # remove the DaemonSet (cached images stay)
 ```
 
 Measured here (fresh repo family, 1 task): the `wait warm` phase dropped from
@@ -127,7 +127,7 @@ First-time setup (once per cluster/shell):
 
 ```bash
 kubectl apply -f manifests/namespace.yaml
-pip install -r requirements.txt
+pip install -r rl_simple_scripts/requirements.txt
 ```
 
 ### Option A — Python driver (all three strategies)
@@ -141,7 +141,7 @@ NAMESPACE=rl-tunix-swebench \
 NODE_SELECTOR_KEY=cloud.google.com/gke-nodepool \
 NODE_SELECTOR_VAL=standard-pool \
 SANDBOX_READY_TIMEOUT=1200 \
-python run_swebench.py
+python rl_simple_scripts/run_swebench.py
 ```
 
 **What the driver does, in order:** loads the dataset → creates a
@@ -199,9 +199,9 @@ kubectl get pods,sandboxwarmpools -n rl-tunix-swebench -w
 
 ```bash
 WARMPOOL_STRATEGY=sliding TASKS_LIMIT=4 WARMPOOL_WINDOW_SIZE=1 MAX_WARMPOOL_SIZE=2 \
-  NAMESPACE=rl-tunix-swebench python run_swebench.py
+  NAMESPACE=rl-tunix-swebench python rl_simple_scripts/run_swebench.py
 WARMPOOL_STRATEGY=none     TASKS_LIMIT=2 \
-  NAMESPACE=rl-tunix-swebench python run_swebench.py
+  NAMESPACE=rl-tunix-swebench python rl_simple_scripts/run_swebench.py
 ```
 
 What to expect from each:
@@ -246,8 +246,8 @@ kubectl delete -f manifests/warmpools/
 Open [`rl-tunix-swebench-demo.ipynb`](./rl-tunix-swebench-demo.ipynb) for an
 interactive walk-through of all three strategies. The committed copy includes
 the outputs from a real run (two `astropy` tasks) so you can see expected
-results before running it yourself. Run it with the example directory as the
-working directory so `import strategies, warmpool` resolves.
+results before running it yourself. Run it from the example root (its setup cell
+adds `rl_simple_scripts/` to `sys.path` so `import strategies, warmpool` resolves).
 
 ### Option D — End-to-end bash test (`e2e_test.sh`)
 
@@ -259,11 +259,11 @@ created object** (`SandboxTemplate`/`SandboxWarmPool`/`SandboxClaim`/`Sandbox`/
 total end-to-end time**. Requires `kubectl`, `curl`, and **`jq`**.
 
 ```bash
-./e2e_test.sh                          # interactive menu (strategy, #tasks)
-./e2e_test.sh -s naive -n 2 -y         # non-interactive
+./rl_simple_scripts/e2e_test.sh                          # interactive menu (strategy, #tasks)
+./rl_simple_scripts/e2e_test.sh -s naive -n 2 -y         # non-interactive
 STRATEGY=sliding TASKS=3 WINDOW_SIZE=1 \
   NODE_SELECTOR_KEY=cloud.google.com/gke-nodepool NODE_SELECTOR_VAL=standard-pool \
-  ./e2e_test.sh -y
+  ./rl_simple_scripts/e2e_test.sh -y
 ```
 
 It fetches real task images from the dataset (HF datasets-server REST API),
@@ -307,7 +307,7 @@ is pulled; it drops to ~1s once images are node-cached.)
 | `WARMPOOL_STRATEGY` | `naive` | `none`, `naive`, or `sliding`. |
 | `WARMPOOL_WINDOW_SIZE` | `0` | (sliding) unique images kept warm; `0` = auto-pick so the warm footprint ≈ `MAX_CONCURRENT`. |
 | `MAX_WARMPOOL_SIZE` | `8` | Hard cap on replicas per image pool. |
-| `MAX_CONCURRENT` | `1` | Concurrency budget used to size pool replicas (see `sizing.py`); raise with parallel execution. |
+| `MAX_CONCURRENT` | `1` | Concurrency budget used to size pool replicas (see `rl_simple_scripts/sizing.py`); raise with parallel execution. |
 | `TASKS_LIMIT` | `1` | Number of tasks from the dataset (`0` = all). |
 | `DATASET_NAME` | `R2E-Gym/SWE-Bench-Verified` | HF dataset with a `docker_image` column. |
 | `DATASET_SPLIT` | `test` | Dataset split. |
@@ -333,7 +333,7 @@ For production-scale runs (thousands of concurrent trajectories) the strategies
 here pair with two infra optimizations from the rl-tunix design:
 
 - **Image pre-pull** — pre-pull task images onto nodes before the run so warm
-  pods skip the multi-GB pull. See [`prepull.sh`](./prepull.sh) (DaemonSet);
+  pods skip the multi-GB pull. See [`prepull.sh`](./rl_simple_scripts/prepull.sh) (DaemonSet);
   measured ~81s→~6s warm-up on a fresh repo family.
 - **Proportional sizing** — size each image's pool to its share of the batch,
   `replicas_image ≈ GlobalConcurrency × tasks_image / tasks_total`, capped by
