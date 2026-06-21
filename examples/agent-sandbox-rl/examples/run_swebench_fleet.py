@@ -92,6 +92,24 @@ def main():
   print(json.dumps({"strategy": strategy, "tasks": len(results),
                     "results": results}, indent=2))
 
+  report_dir = _env("REPORT_DIR", "")
+  if report_dir and fleet.report is not None:
+    _write_report(report_dir, fleet.report, strategy, len(results))
+
+
+def _write_report(report_dir, report, strategy, n_tasks):
+  """Write the RunReport as a timestamped .txt (summary table) + .json."""
+  import datetime
+  import pathlib
+
+  out = pathlib.Path(report_dir)
+  out.mkdir(parents=True, exist_ok=True)
+  stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+  base = out / f"{strategy}_{n_tasks}tasks_{stamp}"
+  base.with_suffix(".txt").write_text(report.summary() + "\n")
+  base.with_suffix(".json").write_text(json.dumps(report.to_dict(), indent=2) + "\n")
+  print(f"\nwrote performance report: {base}.txt / .json")
+
 
 def _record(probe):
   """Wrap the probe to emit a per-task result dict."""
