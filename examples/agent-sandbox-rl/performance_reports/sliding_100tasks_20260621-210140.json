@@ -1,0 +1,70 @@
+{
+  "strategy": "sliding",
+  "total_s": 1525.71,
+  "phases": {
+    "preflight": {
+      "count": 1,
+      "total_s": 1.23,
+      "max_s": 1.23
+    },
+    "plan": {
+      "count": 1,
+      "total_s": 0.0,
+      "max_s": 0.0
+    },
+    "create_warmpool": {
+      "count": 100,
+      "total_s": 55.72,
+      "max_s": 0.74
+    },
+    "wait_pool_ready": {
+      "count": 100,
+      "total_s": 1418.68,
+      "max_s": 42.96
+    },
+    "claim": {
+      "count": 100,
+      "total_s": 194.75,
+      "max_s": 3.29
+    },
+    "process": {
+      "count": 100,
+      "total_s": 64.23,
+      "max_s": 0.93
+    },
+    "release": {
+      "count": 100,
+      "total_s": 13.66,
+      "max_s": 0.19
+    },
+    "teardown": {
+      "count": 1,
+      "total_s": 0.35,
+      "max_s": 0.35
+    }
+  },
+  "claims": 100,
+  "tasks_ok": 100,
+  "tasks_err": 0,
+  "warm_replicas_total": 100,
+  "warm_replicas_peak": 16,
+  "environment": {
+    "default": {
+      "context": "(ambient)",
+      "namespace": "rl-tunix-swebench",
+      "k8s_version": "v1.35.5-gke.1000000",
+      "nodes": 11,
+      "node_pools": [
+        "default-pool",
+        "e2-pool",
+        "tpu-pool-1"
+      ],
+      "instance_types": [
+        "ct4p-hightpu-4t",
+        "e2-standard-16",
+        "n1-standard-1"
+      ],
+      "region": "us-central2"
+    }
+  }
+}

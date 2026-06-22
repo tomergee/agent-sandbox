@@ -1,0 +1,15 @@
+── Run report (strategy=sliding) ──
+  environment:
+    default: context=(ambient)  namespace=rl-tunix-swebench  k8s_version=v1.35.5-gke.1000000  nodes=11  node_pools=[default-pool,e2-pool,tpu-pool-1]  instance_types=[ct4p-hightpu-4t,e2-standard-16,n1-standard-1]  region=us-central2
+  ----------------------------------------
+  preflight              1.23s  (n=1, max=1.23s)
+  plan                   0.00s  (n=1, max=0.00s)
+  create_warmpool       55.72s  (n=100, max=0.74s)
+  wait_pool_ready     1418.68s  (n=100, max=42.96s)
+  claim                194.75s  (n=100, max=3.29s)
+  process               64.23s  (n=100, max=0.93s)
+  release               13.66s  (n=100, max=0.19s)
+  teardown               0.35s  (n=1, max=0.35s)
+  ----------------------------------------
+  TOTAL               1525.71s
+  claims=100  tasks=100ok/0err  warm_replicas total=100 peak=16
