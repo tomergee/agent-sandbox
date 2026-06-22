@@ -20,6 +20,7 @@ This is the only SWE-bench-specific code in the package; the core stays generic.
 
 from __future__ import annotations
 
+import copy
 import logging
 
 from ..sources import Task
@@ -79,7 +80,9 @@ class SweBenchSource:
     for i, r in enumerate(rows):
       meta = {"repo": r.get("repo", ""), "base_commit": r.get("base_commit", "")}
       if self.keep_row:
-        meta["ds"] = dict(r)        # full row for the R2E-Gym adapter / reward grading
+        # Deep copy: an owned snapshot so per-task R2E-Gym/reward state never
+        # leaks across tasks via shared nested objects in the dataset row.
+        meta["ds"] = copy.deepcopy(dict(r))
       tasks.append(Task(id=str(r.get(self.id_field, i)),
                         image=r[self.image_field], metadata=meta))
     logger.info("Loaded %d SWE-bench tasks (%d unique images)",

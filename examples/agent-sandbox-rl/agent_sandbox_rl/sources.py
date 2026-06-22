@@ -85,6 +85,10 @@ class JsonlSource:
         if not line:
           continue
         row = json.loads(line)
+        if self.image_field not in row:
+          raise KeyError(
+              f"{self.path}:{i + 1}: row is missing image field "
+              f"'{self.image_field}'")
         tasks.append(Task(
             id=str(row.get(self.id_field, i)),
             image=row[self.image_field],
@@ -112,6 +116,8 @@ def to_tasks(source) -> list[Task]:
       elif isinstance(item, str):
         out.append(Task(id=str(i), image=item))
       elif isinstance(item, dict):
+        if "image" not in item:
+          raise KeyError(f"task #{i} dict is missing required 'image' key")
         out.append(Task(id=str(item.get("id", i)), image=item["image"],
                         metadata={k: v for k, v in item.items()
                                   if k not in ("id", "image")}))

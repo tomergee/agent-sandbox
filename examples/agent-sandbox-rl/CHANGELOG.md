@@ -68,11 +68,27 @@ Sandbox `v0.5.0rc1` (v1beta1).
   `examples/deepswe_eval_nb.ipynb` (no-model R2E-Gym-on-warm-pools demo),
   `examples/rl_integration.md` (tunix / R2E-Gym / TorchRL / SkyRL).
 - **Docs**: README, `docs/architecture.md`, this changelog.
-- **Tests**: 104 mocked unit tests (sizing, config, resources incl. watch-based
-  pool readiness, cluster, sources, placement, fleet incl. 2-cluster routing,
+- **Tests**: 114 mocked unit tests (sizing, config, resources incl. watch-based
+  pool readiness + fail-fast on terminal errors, cluster, sources, placement,
+  fleet incl. 2-cluster routing + acquire rollback + idempotent release,
   strategies/parallel, preflight, prepull, async, swebench incl. `keep_row`,
-  r2egym adapter (guard + injected-fake-base override logic), observability incl.
-  the RunReport environment block).
+  r2egym adapter (guard + injected-fake-base override logic + namespace isolation
+  under concurrency + bind-failure + thread-safe build), observability incl. the
+  RunReport environment block + duplicate-registration guard).
+
+### Hardening (from an internal code review)
+- r2egym adapter: namespace forwarded explicitly per-call (no global mutation) so
+  concurrent multi-namespace rollouts don't race; thread-safe lazy class build;
+  bind-failure surfaced instead of a half-built runtime.
+- `fleet.acquire()`: roll back + terminate on partial failure (no leaked sandbox
+  / capacity counter); `release()` idempotent under concurrent double-release.
+- `wait_for_pool_ready` fails fast on terminal API errors (401/403/404);
+  `prepull` returns (with a warning) when no nodes match instead of hanging.
+- Observability: Prometheus registration idempotent across re-import; warm-replica
+  gauge updated under the lock. Placement: round-robin thread-safe over a stable
+  ordering; image-affinity hash order-independent. Async `run()` reports the
+  environment block. Misc: SWE-bench `keep_row` deep-copies the row; clearer
+  errors for missing image fields and a non-404 namespace preflight result.
 
 ### Notes / known follow-ups
 - Async backend is a thread-backed wrapper; a native `kubernetes_asyncio` path

@@ -125,8 +125,10 @@ def preflight_cluster(cluster, *, require_runtime_class: str | None = None,
     cluster.core_api.read_namespace(ns)
     r.add("namespace", True, ns)
   except client.ApiException as e:
-    r.add("namespace", e.status != 404, f"{ns} missing" if e.status == 404 else str(e),
-          warn_only=True)
+    # Only a successful read is "ok"; a 404 means missing, anything else (403/500)
+    # is an access problem we should surface rather than report as passing.
+    detail = f"{ns} missing" if e.status == 404 else f"check failed: {e.status}"
+    r.add("namespace", False, detail, warn_only=True)
 
   # 5. runtime class (hard fail if explicitly required)
   if require_runtime_class:

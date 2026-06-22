@@ -288,22 +288,21 @@ class Observer:
         self.report.add_claim()
 
   def warm_add(self, cluster: str, n: int) -> None:
+    # Gauge set inside the lock so concurrent add/remove can't lose an update.
     with self._lock:
       self._warm[cluster] = self._warm.get(cluster, 0) + n
       current = sum(self._warm.values())
       if self.report is not None:
         self.report.warm_total += n
         self.report.peak_warm = max(self.report.peak_warm, current)
-      gauge_val = self._warm[cluster]
-    if self.metrics:
-      WARM_REPLICAS.labels(cluster=cluster).set(gauge_val)
+      if self.metrics:
+        WARM_REPLICAS.labels(cluster=cluster).set(self._warm[cluster])
 
   def warm_remove(self, cluster: str, n: int) -> None:
     with self._lock:
       self._warm[cluster] = max(0, self._warm.get(cluster, 0) - n)
-      gauge_val = self._warm[cluster]
-    if self.metrics:
-      WARM_REPLICAS.labels(cluster=cluster).set(gauge_val)
+      if self.metrics:
+        WARM_REPLICAS.labels(cluster=cluster).set(self._warm[cluster])
 
   def warm_reset(self) -> None:
     with self._lock:

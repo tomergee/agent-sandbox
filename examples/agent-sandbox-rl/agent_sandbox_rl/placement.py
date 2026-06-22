@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import itertools
+import threading
 from typing import Protocol
 
 from .cluster import Cluster, ClusterRegistry
@@ -45,14 +46,28 @@ class Placement(Protocol):
 
 
 class RoundRobin:
-  """Cycle through eligible clusters in registry order."""
+  """Cycle through clusters in stable registry order, skipping ineligible ones.
+
+  Rotates over the fixed registry order (not the variable eligible-set length),
+  so capacity changes don't scramble the rotation. Thread-safe under parallel
+  claims.
+  """
 
   def __init__(self):
     self._counter = itertools.count()
+    self._lock = threading.Lock()
 
   def select(self, image: str, registry: ClusterRegistry) -> Cluster:
-    elig = _eligible(registry)
-    return elig[next(self._counter) % len(elig)]
+    elig = {c.name for c in _eligible(registry)}
+    ordered = list(registry)
+    with self._lock:
+      start = next(self._counter)
+    n = len(ordered)
+    for i in range(n):
+      c = ordered[(start + i) % n]
+      if c.name in elig:
+        return c
+    return ordered[start % n]   # unreachable: _eligible guarantees one match
 
 
 class LeastLoaded:
@@ -87,9 +102,11 @@ class ImageAffinity:
 
   def select(self, image: str, registry: ClusterRegistry) -> Cluster:
     _eligible(registry)  # raises if none have capacity
-    names = registry.names()
-    idx = int(hashlib.md5(image.encode()).hexdigest(), 16) % len(names)
-    target = registry.get(names[idx])
+    # Sorted snapshot so the image→cluster mapping is independent of registry
+    # construction order (stable within a run; clusters are fixed per run).
+    names = sorted(registry.names())
+    digest = hashlib.md5(image.encode(), usedforsecurity=False).hexdigest()
+    target = registry.get(names[int(digest, 16) % len(names)])
     if target.has_capacity(1):
       return target
     return self._fallback.select(image, registry)

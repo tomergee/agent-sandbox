@@ -355,14 +355,17 @@ class SandboxFleet:
     return [h.endpoint(port) for h in self._handles]
 
   def release(self, handle: SandboxHandle) -> None:
-    with self._obs.phase("release", cluster=handle.cluster_name):
-      handle.release()
+    # Claim the handle under the lock first, so a concurrent double-release of the
+    # same handle issues the remote delete (and counter decrement) exactly once.
     with self._lock:
-      if handle in self._handles:
-        self._handles.remove(handle)
+      if handle not in self._handles:
+        return
+      self._handles.remove(handle)
       c = self.registry.get(handle.cluster_name)
       if c.active_claims > 0:
         c.active_claims -= 1
+    with self._obs.phase("release", cluster=handle.cluster_name):
+      handle.release()
 
   def release_all(self) -> None:
     for h in list(self._handles):

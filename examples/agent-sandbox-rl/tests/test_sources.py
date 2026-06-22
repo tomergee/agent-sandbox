@@ -59,3 +59,10 @@ def test_jsonl_source(tmp_path):
   assert [t.id for t in tasks] == ["i1", "i2"]
   assert tasks[0].image == "img1"
   assert tasks[0].metadata["repo"] == "a"
+
+
+def test_to_tasks_dict_missing_image_raises():
+  import pytest
+  from agent_sandbox_rl import to_tasks
+  with pytest.raises(KeyError, match="image"):
+    to_tasks([{"id": "x"}])

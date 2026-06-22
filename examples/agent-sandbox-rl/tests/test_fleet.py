@@ -158,3 +158,15 @@ def test_acquire_terminates_sandbox_on_pod_name_failure(make_cluster):
   assert c.active_replicas == 0
   assert c.active_claims == 0
   assert f.handles() == []
+
+
+def test_release_is_idempotent(make_cluster):
+  c = make_cluster("solo")
+  f = _fleet(ClusterRegistry([c]))
+  f.load_tasks(["img"])
+  h = f.acquire(f.tasks[0])
+  f.release(h)
+  f.release(h)      # double release: remote delete + counter touched once only
+  assert h.sandbox.terminate.call_count == 1
+  assert c.active_claims == 0
+  assert f.handles() == []
