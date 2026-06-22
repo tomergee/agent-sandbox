@@ -149,6 +149,13 @@ class Resources:
         namespace=self.namespace, plural=constants.WARMPOOLS_PLURAL, name=name)
     return int((obj.get("status") or {}).get("readyReplicas", 0) or 0)
 
+  def pool_ready_replicas_safe(self, name: str) -> int:
+    """`pool_ready_replicas` that returns 0 instead of raising on API error."""
+    try:
+      return self.pool_ready_replicas(name)
+    except client.ApiException:
+      return 0
+
   def wait_for_pool_ready(self, name: str, expected: int,
                           timeout: int = 600, poll_interval: float = 1.0) -> bool:
     """Block until the pool reports ``readyReplicas >= expected``.
@@ -185,22 +192,26 @@ class Resources:
             if ready >= expected:
               return True
           # server closed the watch window; the while-loop re-opens it
-        except Exception as e:  # noqa: BLE001 — stale resourceVersion / drop
+        except client.ApiException as e:
+          # Terminal errors won't fix themselves — fail fast instead of
+          # busy-looping until timeout (e.g. RBAC forbidden, CRD/namespace gone).
+          if e.status in (401, 403, 404):
+            logger.error("WarmPool '%s' watch failed (HTTP %s); not retrying: %s",
+                         name, e.status, e)
+            raise
           logger.debug("watch on '%s' interrupted (%s); re-checking", name, e)
-          try:
-            if self.pool_ready_replicas(name) >= expected:
-              return True
-          except client.ApiException:
-            pass
+          if self.pool_ready_replicas_safe(name) >= expected:
+            return True
+          time.sleep(poll_interval)
+        except Exception as e:  # noqa: BLE001 — connection drop / stale RV
+          logger.debug("watch on '%s' dropped (%s); re-checking", name, e)
+          if self.pool_ready_replicas_safe(name) >= expected:
+            return True
           time.sleep(poll_interval)
     finally:
       w.stop()
 
-    ready = 0
-    try:
-      ready = self.pool_ready_replicas(name)
-    except client.ApiException:
-      pass
+    ready = self.pool_ready_replicas_safe(name)
     if ready >= expected:
       return True
     logger.error("WarmPool '%s' not ready (%d/%d) within %ds",

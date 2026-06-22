@@ -200,6 +200,10 @@ class AsyncSandboxFleet:
     obs = self._fleet._obs
     with obs.run(strategy) as report:
       self._fleet.report = report
+      try:
+        report.environment = await asyncio.to_thread(self._fleet.describe_environment)
+      except Exception:  # noqa: BLE001 — environment is best-effort
+        logger.debug("could not collect environment", exc_info=True)
       if strategy == "naive":
         await self.setup()
         try:

@@ -132,3 +132,20 @@ def test_list_uses_label_selector():
   assert r.list_warmpools(label_selector=r.managed_selector()) == ["a", "b"]
   _, kwargs = r.custom_api.list_namespaced_custom_object.call_args
   assert kwargs["label_selector"] == "app=agent-sandbox-rl"
+
+
+def test_wait_for_pool_ready_raises_on_forbidden(monkeypatch):
+  # A terminal API error (RBAC 403) should fail fast, not busy-loop to timeout.
+  r = _resources()
+  r.custom_api.get_namespaced_custom_object.return_value = {"status": {"readyReplicas": 0}}
+
+  class _ForbiddenWatch:
+    def stream(self, *a, **k):
+      raise client.ApiException(status=403)
+
+    def stop(self):
+      pass
+
+  monkeypatch.setattr("agent_sandbox_rl.resources.watch.Watch", lambda: _ForbiddenWatch())
+  with pytest.raises(client.ApiException):
+    r.wait_for_pool_ready("pool-x", 1, timeout=5)

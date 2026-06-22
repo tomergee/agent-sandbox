@@ -91,7 +91,9 @@ def prepull(cluster, images, *, node_selector=None, image_pull_secret=None,
   if not wait:
     return True
 
-  deadline = time.monotonic() + timeout
+  start = time.monotonic()
+  deadline = start + timeout
+  zero_grace = min(15.0, timeout)   # tolerate "no matching nodes yet" briefly
   while True:
     ds = cluster.apps_api.read_namespaced_daemon_set_status(ds_name, cluster.namespace)
     st = ds.status
@@ -99,6 +101,11 @@ def prepull(cluster, images, *, node_selector=None, image_pull_secret=None,
     ready = st.number_ready or 0
     logger.info("Pre-pull '%s': %d/%d nodes ready", ds_name, ready, desired)
     if desired > 0 and ready >= desired:
+      return True
+    # No nodes match the selector — nothing to pull. Don't hang until timeout.
+    if desired == 0 and time.monotonic() - start >= zero_grace:
+      logger.warning("Pre-pull '%s': 0 schedulable nodes after %.0fs — nothing "
+                     "to pre-pull (check node selector).", ds_name, zero_grace)
       return True
     if time.monotonic() >= deadline:
       logger.error("Pre-pull '%s' incomplete (%d/%d) within %ds",

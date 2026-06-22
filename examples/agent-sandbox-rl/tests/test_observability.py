@@ -197,3 +197,14 @@ def test_fleet_run_populates_report(two_cluster_registry):
   assert rep.claims == 3
   assert "process" in rep.phases
   assert rep.total_s >= 0.0
+
+
+def test_metric_duplicate_registration_reuses():
+  from agent_sandbox_rl import observability as o
+  if not o._PROM:
+    import pytest as _pytest
+    _pytest.skip("prometheus_client not installed")
+  from prometheus_client import Counter
+  a = o._metric(Counter, "asrl_test_dup_total", "dup test", ["l"])
+  b = o._metric(Counter, "asrl_test_dup_total", "dup test", ["l"])
+  assert a is b      # second call reuses the existing collector, no ValueError

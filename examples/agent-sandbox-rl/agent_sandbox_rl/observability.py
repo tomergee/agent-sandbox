@@ -37,6 +37,7 @@ logger = logging.getLogger("agent_sandbox_rl.observability")
 
 # --- Prometheus (a hard dep, but guard defensively) ------------------------ #
 try:
+  from prometheus_client import REGISTRY as _REGISTRY
   from prometheus_client import Counter, Gauge, Histogram, start_http_server
   _PROM = True
 except Exception:  # pragma: no cover
@@ -44,19 +45,39 @@ except Exception:  # pragma: no cover
 
 _SEC_BUCKETS = (0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300, 600)
 
+
+def _metric(cls, name, *args, **kwargs):
+  """Create a metric, or reuse the existing collector if ``name`` is already
+  registered (idempotent across module re-import/reload, which otherwise raises
+  ``Duplicated timeseries``)."""
+  try:
+    return cls(name, *args, **kwargs)
+  except ValueError:
+    reg = getattr(_REGISTRY, "_names_to_collectors", {})
+    for cand in (name, name + "_total", name + "_count", name + "_sum",
+                 name + "_bucket", name + "_created"):
+      if cand in reg:
+        return reg[cand]
+    raise
+
+
 if _PROM:
-  PHASE_LATENCY = Histogram(
-      "asrl_phase_latency_seconds", "Fleet phase latency",
+  PHASE_LATENCY = _metric(
+      Histogram, "asrl_phase_latency_seconds", "Fleet phase latency",
       ["phase", "cluster", "family", "strategy", "status"], buckets=_SEC_BUCKETS)
-  TASK_LATENCY = Histogram(
-      "asrl_task_latency_seconds", "Per-task acquire+process+release latency",
+  TASK_LATENCY = _metric(
+      Histogram, "asrl_task_latency_seconds",
+      "Per-task acquire+process+release latency",
       ["strategy", "cluster", "family", "status"], buckets=_SEC_BUCKETS)
-  RUN_LATENCY = Histogram(
-      "asrl_run_latency_seconds", "Whole-run latency",
+  RUN_LATENCY = _metric(
+      Histogram, "asrl_run_latency_seconds", "Whole-run latency",
       ["strategy", "status"], buckets=_SEC_BUCKETS)
-  CLAIMS = Counter("asrl_claims_total", "SandboxClaims started", ["cluster", "status"])
-  TASKS = Counter("asrl_tasks_total", "Tasks processed", ["strategy", "status"])
-  WARM_REPLICAS = Gauge("asrl_warm_replicas", "Current warm replicas", ["cluster"])
+  CLAIMS = _metric(Counter, "asrl_claims_total", "SandboxClaims started",
+                   ["cluster", "status"])
+  TASKS = _metric(Counter, "asrl_tasks_total", "Tasks processed",
+                  ["strategy", "status"])
+  WARM_REPLICAS = _metric(Gauge, "asrl_warm_replicas", "Current warm replicas",
+                          ["cluster"])
 
 
 # --- config --------------------------------------------------------------- #
