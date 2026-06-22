@@ -42,17 +42,28 @@ Usage::
 
 **Ownership:** the env never deletes the pod — `env.close()` is a no-op. The fleet
 owns the pod's lifecycle; `fleet.run`/`fleet.release(handle)` frees it. Namespace
-flows automatically from the handle's cluster (`ClusterConfig.namespace`).
+flows from the handle's cluster (`ClusterConfig.namespace`): exec and file-copy are
+reimplemented to target the handle's namespace explicitly and use a per-runtime
+`CoreV1Api`, so concurrent rollouts across clusters/namespaces stay correct
+(R2E-Gym's base hardcodes the ``default`` namespace via a module global).
 
 Requires R2E-Gym (`pip install r2egym`, or `pip install -e` the R2E-Gym checkout).
 Importing this module is cheap; the R2E-Gym subclasses are built lazily on first
-use so the core package imports fine without R2E-Gym installed.
+use (thread-safely) so the core package imports fine without R2E-Gym installed.
 """
 
 from __future__ import annotations
 
-import contextlib
+import concurrent.futures
+import io
 import logging
+import os
+import re
+import tarfile
+import threading
+import time
+
+from kubernetes.stream import stream
 
 logger = logging.getLogger("agent_sandbox_rl.adapters.r2egym")
 
@@ -61,9 +72,11 @@ _HINT = (
     "checkout). See examples/rl_integration.md."
 )
 
-# Memoized (FleetDockerRuntime, FleetRepoEnv) so isinstance() stays valid and the
-# subclasses are built only once, on first use.
+# Memoized (FleetDockerRuntime, FleetRepoEnv): built once, so isinstance() stays
+# valid. Guarded by a lock for thread-safe first use (rollouts build envs in
+# parallel worker threads).
 _CLASSES = None
+_BUILD_LOCK = threading.Lock()
 
 
 def _import_r2egym():
@@ -76,123 +89,208 @@ def _import_r2egym():
 
 
 def _build_classes():
-  """Build (and memoize) the R2E-Gym subclasses. Raises RuntimeError w/o r2egym."""
+  """Build (and memoize) the R2E-Gym subclasses. Raises RuntimeError w/o r2egym.
+
+  Thread-safe via double-checked locking so concurrent first use returns one
+  stable pair of class objects.
+  """
   global _CLASSES
   if _CLASSES is not None:
     return _CLASSES
+  with _BUILD_LOCK:
+    if _CLASSES is not None:
+      return _CLASSES
 
-  from kubernetes import client as k8s
-  docker_mod, _EnvArgs, RepoEnv = _import_r2egym()
-  DockerRuntime = docker_mod.DockerRuntime
+    from kubernetes import client as k8s
+    docker_mod, _EnvArgs, RepoEnv = _import_r2egym()
+    DockerRuntime = docker_mod.DockerRuntime
+    cmd_timeout = getattr(docker_mod, "CMD_TIMEOUT", 90)
 
-  class FleetDockerRuntime(DockerRuntime):
-    """A `DockerRuntime` bound to a fleet-warmed pod instead of cold-creating one.
+    class FleetDockerRuntime(DockerRuntime):
+      """A `DockerRuntime` bound to a fleet-warmed pod instead of cold-creating one.
 
-    Constructed from an `agent_sandbox_rl.SandboxHandle`; overrides only the
-    backend lifecycle hooks so the rest of R2E-Gym's runtime (exec, file copy,
-    setup_env, reward) works unchanged against the warm pod.
-    """
-
-    def __init__(self, handle, *, command=("/bin/bash", "-l"), logger=None,
-                 **docker_kwargs):
-      self._handle = handle
-      ds = (getattr(handle.task, "metadata", None) or {}).get("ds")
-      if ds is None:
-        raise RuntimeError(
-            "Task.metadata['ds'] is required for the R2E-Gym adapter — load "
-            "tasks with SweBenchSource(keep_row=True).")
-      super().__init__(
-          ds=ds, docker_image=handle.task.image, command=list(command),
-          logger=logger, backend="kubernetes-sandbox", **docker_kwargs)
-
-    @property
-    def _ns(self) -> str:
-      return self._handle._cluster.namespace
-
-    @contextlib.contextmanager
-    def _ns_patched(self):
-      """Point the base methods' module-level DEFAULT_NAMESPACE at our handle's
-      namespace for the duration of a base call (base hardcodes "default")."""
-      old = docker_mod.DEFAULT_NAMESPACE
-      docker_mod.DEFAULT_NAMESPACE = self._ns
-      try:
-        yield
-      finally:
-        docker_mod.DEFAULT_NAMESPACE = old
-
-    def _start_kubernetes_sandbox(self):
-      # Bind to the warm pod from the fleet handle — no SandboxClient, no template.
-      cl = self._handle._cluster
-      self.sb_client = None
-      self.custom_api = None
-      self.container_name = self._handle.pod_name
-      # Per-runtime CoreV1Api (mirrors SandboxHandle.exec's isolation): the
-      # kubernetes stream() websocket exec is not thread-safe across a shared
-      # ApiClient, so each runtime gets its own.
-      self.client = k8s.CoreV1Api(k8s.ApiClient(cl.api_client.configuration))
-      self.container = self.client.read_namespaced_pod(
-          name=self.container_name, namespace=cl.namespace)
-      self.logger.info("Bound warm pod '%s' (ns=%s) from fleet handle",
-                       self.container_name, cl.namespace)
-
-    def _stop_kubernetes_sandbox(self):
-      # The fleet owns the pod; release happens via fleet.release(handle).
-      self.logger.debug("FleetDockerRuntime: teardown is a no-op (fleet owns "
-                        "pod '%s')", getattr(self, "container_name", "?"))
-
-    def _run_kubernetes(self, *args, **kwargs):
-      with self._ns_patched():
-        return super()._run_kubernetes(*args, **kwargs)
-
-    def _copy_to_container_kubernetes(self, *args, **kwargs):
-      with self._ns_patched():
-        return super()._copy_to_container_kubernetes(*args, **kwargs)
-
-  class FleetRepoEnv(RepoEnv):
-    """`RepoEnv` whose runtime is a `FleetDockerRuntime` (no cold pod start).
-
-    Mirrors `RepoEnv.__init__` but swaps the runtime construction so no throwaway
-    sandbox is created. One episode per acquired handle is the intended pattern.
-    """
-
-    def __init__(self, handle, args, *, logger=None, verbose=True,
-                 step_timeout=90, reward_timeout=300):
-      if logger is None:
-        from r2egym.agenthub.utils.log import get_logger
-        self.logger = get_logger("FleetRepoEnv")
-      else:
-        self.logger = logger
-      if not verbose:
-        self.logger.setLevel(logging.CRITICAL)
-
-      self.runtime = FleetDockerRuntime(handle, logger=self.logger)
-
-      self.args = args
-      self.done = False
-      self.observation = None
-      self.state = None
-      from r2egym.agenthub.agent.commands import ParseCommandBash
-      self.cmd_parser = ParseCommandBash()
-      self.backend = "kubernetes-sandbox"
-      self.step_timeout = step_timeout
-      self.reward_timeout = reward_timeout
-      self.logger.info("Initialized FleetRepoEnv: %s image: %s",
-                       self.runtime.repo_name, self.runtime.docker_image)
-
-    def reset(self):
-      """Soft reset: re-bind to the same warm pod (no cold start, no setup rerun).
-
-      For a fresh episode, prefer `fleet.release(handle)` + `fleet.acquire(task)`
-      to get a clean pod.
+      Constructed from an `agent_sandbox_rl.SandboxHandle`; overrides the backend
+      lifecycle hooks (bind instead of create, no-op teardown) and reimplements
+      exec / file-copy so they target the handle's namespace with a per-runtime
+      client. Everything else in R2E-Gym's runtime (setup_env, reward, …) works
+      unchanged against the warm pod.
       """
-      self.logger.info("FleetRepoEnv soft reset (re-binding warm pod)")
-      self.runtime.start_container(
-          self.runtime.docker_image, self.runtime.command,
-          self.runtime.container_name)
-      self.observation = "Environment reset"
-      self.state = None
-      self.done = False
-      return self.observation
+
+      def __init__(self, handle, *, command=("/bin/bash", "-l"), logger=None,
+                   **docker_kwargs):
+        self._handle = handle
+        ds = (getattr(handle.task, "metadata", None) or {}).get("ds")
+        if ds is None:
+          raise RuntimeError(
+              "Task.metadata['ds'] is required for the R2E-Gym adapter — load "
+              "tasks with SweBenchSource(keep_row=True).")
+        super().__init__(
+            ds=ds, docker_image=handle.task.image, command=list(command),
+            logger=logger, backend="kubernetes-sandbox", **docker_kwargs)
+        # R2E-Gym's base start_container swallows exceptions from
+        # _start_kubernetes_sandbox, so surface a failed bind clearly instead of
+        # proceeding with a half-built runtime.
+        if getattr(self, "container", None) is None \
+            or self.container_name != handle.pod_name:
+          raise RuntimeError(
+              f"failed to bind warm pod '{handle.pod_name}' "
+              f"(ns={handle._cluster.namespace}) into R2E-Gym runtime; see logs.")
+
+      @property
+      def _ns(self) -> str:
+        return self._handle._cluster.namespace
+
+      def _start_kubernetes_sandbox(self):
+        # Bind to the warm pod from the fleet handle — no SandboxClient, no template.
+        cl = self._handle._cluster
+        self.sb_client = None
+        self.custom_api = None
+        self.container_name = self._handle.pod_name
+        # Per-runtime CoreV1Api (mirrors SandboxHandle.exec's isolation): the
+        # kubernetes stream() websocket exec is not thread-safe across a shared
+        # ApiClient, so each runtime gets its own.
+        self.client = k8s.CoreV1Api(k8s.ApiClient(cl.api_client.configuration))
+        self.container = self.client.read_namespaced_pod(
+            name=self.container_name, namespace=cl.namespace)
+        self.logger.info("Bound warm pod '%s' (ns=%s) from fleet handle",
+                         self.container_name, cl.namespace)
+
+      def _stop_kubernetes_sandbox(self):
+        # The fleet owns the pod; release happens via fleet.release(handle).
+        self.logger.debug("FleetDockerRuntime: teardown is a no-op (fleet owns "
+                          "pod '%s')", getattr(self, "container_name", "?"))
+
+      # --- exec / file-copy: like the base, but namespace-explicit ---------- #
+      # R2E-Gym's base _run_kubernetes / _copy_to_container_kubernetes read the
+      # module-level DEFAULT_NAMESPACE ("default"). We reimplement them to use the
+      # handle's namespace and per-runtime client so parallel rollouts across
+      # namespaces don't race on a shared global. Bodies mirror R2E-Gym's
+      # (output, exit_code) contract that patch-apply / reward grading rely on.
+
+      def _run_kubernetes(self, code, timeout=cmd_timeout, args="", workdir=""):
+        command = ""
+        if workdir:
+          command += f"cd {workdir} && "
+        command += f"timeout {timeout} {code} {args}"
+        full_command = ["/bin/sh", "-c", command]
+        try:
+          def execute_command():
+            resp = stream(
+                self.client.connect_get_namespaced_pod_exec,
+                self.container_name, self._ns, command=full_command,
+                stderr=True, stdin=False, stdout=True, tty=False,
+                _preload_content=False)
+            chunks = []
+            while resp.is_open():
+              resp.update(timeout=1)
+              if resp.peek_stdout():
+                chunks.append(resp.read_stdout())
+              if resp.peek_stderr():
+                chunks.append(resp.read_stderr())
+            resp.close()
+            return "".join(chunks), resp.returncode
+
+          with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            output, exit_code = ex.submit(execute_command).result(timeout=timeout + 5)
+
+          if exit_code is None:
+            self.logger.error("Kubernetes exec: exit code not found.")
+            return output, "-1"
+          if exit_code == 124:
+            self.logger.error("Internal timeout via 'timeout' command: %ss", timeout)
+            return f"The command took too long to execute (>{timeout}s)", "-1"
+          if exit_code != 0:
+            self.logger.error("Kubernetes exec error: exit code %s\n%s",
+                              exit_code, output)
+            return output, f"Error: Exit code {exit_code}"
+          output = re.sub(r"\x1b\[[0-9;]*m|\r", "", output)
+          return output, str(exit_code)
+        except concurrent.futures.TimeoutError:
+          self.logger.error("Kubernetes exec overall timeout: %ss", timeout + 5)
+          return f"The command took too long to execute (>{timeout}s)", "-1"
+        except k8s.ApiException as e:
+          self.logger.error("Kubernetes API error during exec: %s", e)
+          return f"Error executing command in pod: {repr(e)}", "-1"
+        except Exception as e:  # noqa: BLE001 — mirror base's catch-all
+          self.logger.error("Unexpected error during Kubernetes exec: %s", repr(e))
+          return f"Error: {repr(e)}", "-1"
+
+      def _copy_to_container_kubernetes(self, src_path, dest_path):
+        dest_dir = os.path.dirname(dest_path)
+        tar_stream = io.BytesIO()
+        with tarfile.open(fileobj=tar_stream, mode="w") as tar:
+          tar.add(src_path, arcname=os.path.basename(dest_path))
+        tar_stream.seek(0)
+        max_retries, retry_delay = 5, 5
+        for attempt in range(max_retries):
+          try:
+            resp = stream(
+                self.client.connect_get_namespaced_pod_exec,
+                self.container_name, self._ns,
+                command=["tar", "xmf", "-", "-C", dest_dir],
+                stderr=True, stdin=True, stdout=True, tty=False,
+                _preload_content=False)
+            resp.write_stdin(tar_stream.read())
+            resp.close()
+            return
+          except Exception as e:  # noqa: BLE001 — mirror base's retry
+            if attempt < max_retries - 1:
+              self.logger.warning("copy to pod failed (attempt %d/%d): %s",
+                                  attempt + 1, max_retries, e)
+              time.sleep(retry_delay)
+              retry_delay = min(retry_delay * 2, 60)
+              tar_stream.seek(0)
+            else:
+              self.logger.error("copy to pod failed after %d attempts: %s",
+                                max_retries, e)
+              raise
+
+    class FleetRepoEnv(RepoEnv):
+      """`RepoEnv` whose runtime is a `FleetDockerRuntime` (no cold pod start).
+
+      Mirrors `RepoEnv.__init__` but swaps the runtime construction so no throwaway
+      sandbox is created. One episode per acquired handle is the intended pattern.
+      """
+
+      def __init__(self, handle, args, *, logger=None, verbose=True,
+                   step_timeout=90, reward_timeout=300):
+        if logger is None:
+          from r2egym.agenthub.utils.log import get_logger
+          self.logger = get_logger("FleetRepoEnv")
+        else:
+          self.logger = logger
+        if not verbose:
+          self.logger.setLevel(logging.CRITICAL)
+
+        self.runtime = FleetDockerRuntime(handle, logger=self.logger)
+
+        self.args = args
+        self.done = False
+        self.observation = None
+        self.state = None
+        self.commands = []           # base sets this only in add_commands; guard step()
+        from r2egym.agenthub.agent.commands import ParseCommandBash
+        self.cmd_parser = ParseCommandBash()
+        self.backend = "kubernetes-sandbox"
+        self.step_timeout = step_timeout
+        self.reward_timeout = reward_timeout
+        self.logger.info("Initialized FleetRepoEnv: %s image: %s",
+                         self.runtime.repo_name, self.runtime.docker_image)
+
+      def reset(self):
+        """Soft reset: re-validate the warm-pod binding (no cold start, no setup
+        rerun). For a fresh episode, prefer `fleet.release(handle)` +
+        `fleet.acquire(task)` to get a clean pod."""
+        self.logger.info("FleetRepoEnv soft reset (re-binding warm pod)")
+        self.runtime.start_container(
+            self.runtime.docker_image, self.runtime.command,
+            self.runtime.container_name)
+        if getattr(self.runtime, "container", None) is None:
+          raise RuntimeError("FleetRepoEnv.reset: warm pod re-bind failed")
+        self.observation = "Environment reset"
+        self.state = None
+        self.done = False
+        return self.observation
 
   _CLASSES = (FleetDockerRuntime, FleetRepoEnv)
   return _CLASSES
@@ -228,7 +326,6 @@ def r2egym_command_files() -> list:
   Mirrors tunix deepswe's ``R2EGYM_COMMAND_FILES`` (derived from the installed
   ``r2egym`` package). Requires R2E-Gym installed.
   """
-  import os
   try:
     import r2egym
   except ImportError as e:

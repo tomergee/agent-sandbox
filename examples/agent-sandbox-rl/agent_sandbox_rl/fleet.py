@@ -289,9 +289,15 @@ class SandboxFleet:
 
   # --- claims ------------------------------------------------------------ #
   def acquire(self, task: Task) -> SandboxHandle:
-    """Claim a sandbox for ``task`` and return a `SandboxHandle`."""
+    """Claim a sandbox for ``task`` and return a `SandboxHandle`.
+
+    On any failure between claim creation and bookkeeping, the partially-created
+    sandbox is terminated and the on-demand replica bump is rolled back, so a
+    failed acquire leaks neither a remote sandbox nor capacity counters.
+    """
     entry = self.plan_.for_image(task.image) if self.plan_ else None
-    if entry is not None:
+    on_demand = entry is None
+    if not on_demand:
       cluster = self.registry.get(entry.cluster)
       pool = entry.pool
     else:
@@ -301,16 +307,31 @@ class SandboxFleet:
         cluster.active_replicas += 1
 
     fam = repo_family(task)
-    with self._obs.phase("claim", cluster=cluster.name, family=fam):
-      sandbox = cluster.sandbox_client.create_sandbox(
-          warmpool=pool, namespace=cluster.namespace,
-          sandbox_ready_timeout=self.config.ready_timeout,
-          labels=dict(self.config.labels))
-      pod = sandbox.get_pod_name()
-      try:
-        pod_ip = sandbox.get_pod_ip()
-      except Exception:  # noqa: BLE001
-        pod_ip = None
+    sandbox = None
+    try:
+      with self._obs.phase("claim", cluster=cluster.name, family=fam):
+        sandbox = cluster.sandbox_client.create_sandbox(
+            warmpool=pool, namespace=cluster.namespace,
+            sandbox_ready_timeout=self.config.ready_timeout,
+            labels=dict(self.config.labels))
+        pod = sandbox.get_pod_name()
+        try:
+          pod_ip = sandbox.get_pod_ip()
+        except Exception:  # noqa: BLE001
+          pod_ip = None
+    except Exception:  # noqa: BLE001 — roll back partial state, then re-raise
+      if sandbox is not None:
+        try:
+          sandbox.terminate()
+        except Exception:  # noqa: BLE001
+          logger.warning("failed to terminate sandbox after acquire error",
+                         exc_info=True)
+      if on_demand:
+        with self._lock:
+          cluster.active_replicas = max(0, cluster.active_replicas - 1)
+      self._obs.claim(cluster.name, "error")
+      raise
+
     handle = SandboxHandle(
         task=task, cluster_name=cluster.name, claim_name=sandbox.claim_name,
         sandbox_id=sandbox.sandbox_id, pod_name=pod, hostname=sandbox.sandbox_id,

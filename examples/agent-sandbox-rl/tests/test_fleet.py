@@ -126,3 +126,35 @@ def test_default_registry_from_config_clusters(monkeypatch):
   f = SandboxFleet(FleetConfig(clusters=[ClusterConfig(name="c1"),
                                          ClusterConfig(name="c2")]))
   assert f.registry.names() == ["c1", "c2"]
+
+
+def test_acquire_rolls_back_on_create_failure(make_cluster):
+  c = make_cluster("solo")
+  f = _fleet(ClusterRegistry([c]))
+  f.load_tasks(["img"])
+  c.sandbox_client.create_sandbox.side_effect = RuntimeError("boom")
+  with pytest.raises(RuntimeError):
+    f.acquire(f.tasks[0])
+  # on-demand replica bump rolled back; nothing tracked/leaked
+  assert c.active_replicas == 0
+  assert c.active_claims == 0
+  assert f.handles() == []
+
+
+def test_acquire_terminates_sandbox_on_pod_name_failure(make_cluster):
+  from unittest.mock import MagicMock
+  c = make_cluster("solo")
+  f = _fleet(ClusterRegistry([c]))
+  f.load_tasks(["img"])
+  bad = MagicMock()
+  bad.claim_name = "cx"
+  bad.sandbox_id = "sx"
+  bad.get_pod_name.side_effect = RuntimeError("nopod")
+  c.sandbox_client.create_sandbox.side_effect = None
+  c.sandbox_client.create_sandbox.return_value = bad
+  with pytest.raises(RuntimeError):
+    f.acquire(f.tasks[0])
+  bad.terminate.assert_called_once()      # created sandbox cleaned up
+  assert c.active_replicas == 0
+  assert c.active_claims == 0
+  assert f.handles() == []
