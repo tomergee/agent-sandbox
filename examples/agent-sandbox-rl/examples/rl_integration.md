@@ -164,6 +164,36 @@ def rollout(task, handle):                    # one warm pod per task
 results = fleet.run(rollout, strategy="sliding", concurrency=MAX_CONCURRENT)
 ```
 
+### What the adapter overrides — and what it deliberately doesn't
+
+`FleetDockerRuntime` is a `DockerRuntime` subclass that replaces exactly **four
+hooks**; if you're auditing "what changed vs stock R2E-Gym", this is the whole
+surface:
+
+| R2E-Gym hook | replacement |
+|---|---|
+| `_start_kubernetes_sandbox` (cold-create a pod) | **bind** to the fleet handle's already-warm pod |
+| `_stop_kubernetes_sandbox` (delete the pod) | no-op — the fleet owns the pod lifecycle |
+| `_run_kubernetes` (exec) | same `(output, exit_code)` contract, but **namespace-explicit** with a per-runtime client (the base reads a module-global `default` namespace, which races under concurrent multi-namespace rollouts) |
+| `_copy_to_container_kubernetes` | same, namespace-explicit |
+
+Everything else — `setup_env`, patch apply/reverse, `run_tests`, reward grading,
+`get_patch` — runs **byte-for-byte unchanged**, because all of it funnels through
+`run()` → `_run_kubernetes` anyway. That's the design bet: swap only the pod
+lifecycle, never the semantics your rewards depend on.
+
+### Why not swap the backend *inside* `docker.py`?
+
+It's tempting to keep R2E-Gym's own runners as the driver and hide a fleet
+singleton behind `DockerRuntime` so everything "transparently" runs on Agent
+Sandbox. That works mechanically (acquire in the constructor, release in
+`close`), but it forfeits most of the value: warm pools, image-affinity
+placement, and the sliding/pipelined strategies all come from **knowing the task
+list up front** — `docker.py` cold-creates per env precisely because it has no
+batch context. Integrate at the layer that owns the batch (your rollout engine /
+eval loop), hand each worker a handle, and let R2E-Gym do everything else inside
+it. `fleet.run(rollout, …)` *is* that layer.
+
 Contracts:
 - **`keep_row=True`** stores the full dataset row under `task.metadata["ds"]`,
   which R2E-Gym's env + reward grading require.
