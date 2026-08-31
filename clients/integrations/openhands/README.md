@@ -193,6 +193,29 @@ up). Leaving key and `api_key` unset is acceptable only on a private, trusted ne
 - Set `ttl_s` in anything long-running: it is the server-side backstop that reaps
   claims from clients that died without cleanup.
 
+## Pause and resume
+
+`pause()` sets the Sandbox's `spec.operatingMode` to `Suspended`; `resume()` sets it
+back to `Running` and re-attaches:
+
+```python
+workspace.pause()    # pod deleted; claim, Sandbox identity and volumes remain
+workspace.resume()   # new pod boots; endpoint re-resolved; health re-verified
+```
+
+Semantics to know before relying on it:
+
+- **Suspend deletes the pod.** In-memory agent-server state (running commands, the
+  event store) is lost; only volume-backed state survives. For a persistent
+  `/workspace`, uncomment the `volumeClaimTemplates` block in the example template.
+- **Resume is a boot, not a bind** — budgeted by `resume_timeout` (default 120 s),
+  unlike the 10 s claim-time health check. The replacement pod gets a **new IP**;
+  the workspace re-resolves the endpoint, resets its HTTP client, and re-verifies
+  health automatically (in router mode the routed pod IP follows along per request).
+- **RBAC:** the client identity needs `patch` on `sandboxes.agents.x-k8s.io`.
+- **Fleet-managed workspaces** (`make_fleet_workspace`): drive lifecycle through the
+  fleet, not the workspace — `pause()` raises a clear error there.
+
 ## Sizing and scale
 
 - Pool `replicas` ≈ peak concurrent conversations, plus slack for replenish lag.

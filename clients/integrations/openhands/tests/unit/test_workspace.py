@@ -275,6 +275,106 @@ def test_version_check_failure_is_silent(no_health, monkeypatch, caplog):
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
+# ------------------------------------------------------------ pause/resume
+
+
+class FakeApi:
+    def __init__(self):
+        self.patches = []
+
+    def patch_namespaced_custom_object(self, **kwargs):
+        self.patches.append(kwargs)
+
+
+def test_pause_prefers_native_suspend(no_health):
+    sandbox = FakeSandbox()
+    calls = []
+    sandbox.suspend = lambda: calls.append("suspend")
+    ws = make_workspace(FakeClient(sandbox))
+    ws.pause()
+    assert calls == ["suspend"]
+
+
+def test_pause_falls_back_to_helper_patch(no_health):
+    sandbox = FakeSandbox(sandbox_id="sbx-p")
+    client = FakeClient(sandbox)
+    api = FakeApi()
+    client.k8s_helper = type("FakeHelper", (), {"custom_objects_api": api})()
+    ws = make_workspace(client, namespace="ns1")
+    ws.pause()
+    kwargs = api.patches[0]
+    assert kwargs["plural"] == "sandboxes"
+    assert kwargs["name"] == "sbx-p"
+    assert kwargs["namespace"] == "ns1"
+    assert kwargs["body"] == {"spec": {"operatingMode": "Suspended"}}
+
+
+def test_pause_without_capability_raises(no_health):
+    # FakeClient has no k8s_helper and FakeSandbox no suspend(): clear error
+    # steering fleet-managed workspaces to the fleet.
+    ws = make_workspace()
+    with pytest.raises(RuntimeError, match="fleet"):
+        ws.pause()
+
+
+def test_pause_after_cleanup_raises(no_health):
+    ws = make_workspace()
+    ws.cleanup()
+    with pytest.raises(RuntimeError, match="no active sandbox"):
+        ws.pause()
+
+
+def test_resume_rebuilds_host_resets_client_rechecks_health(no_health, monkeypatch):
+    sandbox = FakeSandbox(pod_ip="10.0.0.5", sandbox_id="sbx-r")
+    resumed = []
+    sandbox.resume = lambda: resumed.append(True)
+    ws = make_workspace(FakeClient(sandbox))
+    assert ws.host == "http://10.0.0.5:8000"
+
+    sandbox._pod_ip = "10.0.0.99"  # the replacement pod lands on a new IP
+    health_budgets = []
+    monkeypatch.setattr(
+        AgentSandboxWorkspace,
+        "_wait_for_health",
+        lambda self, *, timeout: health_budgets.append(timeout),
+    )
+    resets = []
+    monkeypatch.setattr(
+        AgentSandboxWorkspace, "reset_client", lambda self: resets.append(True)
+    )
+    ws.resume()
+    assert resumed == [True]
+    assert ws.host == "http://10.0.0.99:8000"
+    assert resets == [True]
+    assert health_budgets and health_budgets[0] <= ws.resume_timeout
+
+
+def test_resume_times_out_without_replacement_pod_ip(no_health):
+    sandbox = FakeSandbox(pod_ip="10.0.0.5")
+    sandbox.resume = lambda: None
+    ws = make_workspace(FakeClient(sandbox), resume_timeout=0.6)
+    sandbox._pod_ip = None  # pod never comes back
+    with pytest.raises(RuntimeError, match="replacement pod IP"):
+        ws.resume()
+
+
+def test_resume_router_mode_keeps_router_host(no_health, monkeypatch):
+    sandbox = FakeSandbox(sandbox_id="sbx-9")
+    sandbox.resume = lambda: None
+    ws = make_workspace(
+        FakeClient(sandbox),
+        router_url="http://router:8080",
+        router_auth_token="tok",
+    )
+    monkeypatch.setattr(
+        AgentSandboxWorkspace, "_wait_for_health", lambda self, *, timeout: None
+    )
+    ws.resume()
+    # Router base is stable; only the X-Sandbox-Pod-IP header (read live per
+    # request) follows the replacement pod.
+    assert ws.host == "http://router:8080"
+
+
 # ----------------------------------------------------------------- teardown
 
 

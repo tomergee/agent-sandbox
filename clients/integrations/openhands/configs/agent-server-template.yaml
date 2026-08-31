@@ -9,6 +9,18 @@ metadata:
   name: openhands-agent-server
   namespace: default
 spec:
+  # Optional, but required for meaningful pause()/resume(): a suspended
+  # sandbox's pod is DELETED, so only volume-backed state survives. Uncomment
+  # to keep /workspace across suspend/resume (and add the matching
+  # volumeMount below).
+  # volumeClaimTemplates:
+  #   - metadata:
+  #       name: workspace
+  #     spec:
+  #       accessModes: ["ReadWriteOnce"]
+  #       resources:
+  #         requests:
+  #           storage: 5Gi
   podTemplate:
     spec:
       runtimeClassName: gvisor          # recommended: model-driven code runs here

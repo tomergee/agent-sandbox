@@ -41,6 +41,11 @@ from openhands.sdk.workspace import RemoteWorkspace
 
 logger = get_logger(__name__)
 
+# spec.operatingMode lives on the Sandbox resource (not the claim).
+_SANDBOX_GROUP = "agents.x-k8s.io"
+_SANDBOX_VERSION = "v1beta1"
+_SANDBOX_PLURAL = "sandboxes"
+
 
 class AgentSandboxWorkspace(RemoteWorkspace):
     """Remote workspace bound to a pre-warmed agent-sandbox pod.
@@ -136,6 +141,15 @@ class AgentSandboxWorkspace(RemoteWorkspace):
         description=(
             "Optional claim TTL (spec.lifecycle shutdownTime). The controller "
             "deletes the claim on expiry even if this process dies first."
+        ),
+    )
+    resume_timeout: float = Field(
+        default=120.0,
+        gt=0.0,
+        description=(
+            "Budget for resume(): unlike a claim, resume is a boot — the "
+            "suspended pod was deleted and a replacement must schedule, pull "
+            "(if uncached), and pass readiness. Docker-class budget."
         ),
     )
     claim_labels: dict[str, str] | None = Field(
@@ -295,6 +309,84 @@ class AgentSandboxWorkspace(RemoteWorkspace):
             f"agent-server at {health_url} failed to become healthy within "
             f"{timeout}s (pre-warmed pods should be healthy at claim time; "
             f"last error: {last_error!r})"
+        )
+
+    # ---------------------------------------------------------- pause/resume
+
+    def pause(self) -> None:
+        """Suspend the sandbox (``spec.operatingMode: Suspended``).
+
+        The pod is deleted; only volume-backed state (e.g. a PVC-mounted
+        workspace — see the commented block in the example template) survives.
+        In-memory agent-server state (running commands, event store) is lost,
+        exactly as with a Docker container restart.
+        """
+        self._set_operating_mode("Suspended")
+        logger.info("Paused sandbox %s", getattr(self._sandbox, "sandbox_id", "?"))
+
+    def resume(self) -> None:
+        """Resume a suspended sandbox and re-attach to its replacement pod.
+
+        Resume is a boot, not a bind: the controller creates a NEW pod, which
+        means a new pod IP — so the endpoint is re-resolved, the HTTP client
+        reset, and health re-verified under ``resume_timeout``.
+        """
+        sandbox = self._require_sandbox()
+        self._set_operating_mode("Running")
+        deadline = time.monotonic() + self.resume_timeout
+        # Wait for the replacement pod's IP; it feeds the direct endpoint, the
+        # endpoint template, and the router's X-Sandbox-Pod-IP header alike.
+        while not sandbox.get_pod_ip():
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f"resume: sandbox {getattr(sandbox, 'sandbox_id', '?')!r} "
+                    f"got no replacement pod IP within {self.resume_timeout}s"
+                )
+            time.sleep(0.5)
+        if not self.router_url:
+            object.__setattr__(self, "host", self._endpoint_url(sandbox))
+        self.reset_client()  # stale connections point at the dead pod
+        self._wait_for_health(timeout=max(deadline - time.monotonic(), 1.0))
+        logger.info(
+            "Resumed sandbox %s at %s",
+            getattr(sandbox, "sandbox_id", "?"),
+            self.host,
+        )
+
+    def _require_sandbox(self) -> Any:
+        if self._sandbox is None:
+            raise RuntimeError("workspace has no active sandbox (closed?)")
+        return self._sandbox
+
+    def _set_operating_mode(self, mode: str) -> None:
+        """Patch the Sandbox's operatingMode.
+
+        Prefers a native ``suspend()``/``resume()`` on the SDK sandbox if a
+        future release adds one; falls back to patching through the client's
+        k8s helper. Needs RBAC ``patch`` on ``sandboxes``.
+        """
+        sandbox = self._require_sandbox()
+        native = getattr(
+            sandbox, "suspend" if mode == "Suspended" else "resume", None
+        )
+        if callable(native):
+            native()
+            return
+        helper = getattr(self.sandbox_client, "k8s_helper", None)
+        api = getattr(helper, "custom_objects_api", None)
+        if api is None:
+            raise RuntimeError(
+                "pause/resume needs a sandbox client exposing "
+                "k8s_helper.custom_objects_api (fleet-managed workspaces: "
+                "drive lifecycle through the fleet, not the workspace)"
+            )
+        api.patch_namespaced_custom_object(
+            group=_SANDBOX_GROUP,
+            version=_SANDBOX_VERSION,
+            namespace=self.namespace,
+            plural=_SANDBOX_PLURAL,
+            name=getattr(sandbox, "sandbox_id", ""),
+            body={"spec": {"operatingMode": mode}},
         )
 
     # ------------------------------------------------------------- lifecycle
